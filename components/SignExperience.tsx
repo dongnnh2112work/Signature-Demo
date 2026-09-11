@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState, useSyncExternalStore } from "react";
-import { SIGNED_STORAGE_KEY, event } from "@/lib/event";
+import { SIGNED_STORAGE_KEY, SIGNED_SVG_STORAGE_KEY, event } from "@/lib/event";
 import { insertSignature } from "@/lib/signatures/client";
+import { downloadPng, downloadSvg } from "@/lib/signatures/download";
 import {
   SignaturePad,
   type SignaturePadHandle,
@@ -63,6 +64,7 @@ export function SignExperience() {
     setSubmitting(false);
 
     window.localStorage.setItem(SIGNED_STORAGE_KEY, "1");
+    window.localStorage.setItem(SIGNED_SVG_STORAGE_KEY, svg);
     setStatus("thanks");
   }
 
@@ -71,6 +73,10 @@ export function SignExperience() {
       status === "thanks" ? event.thanksTitle : event.alreadySignedTitle;
     const body =
       status === "thanks" ? event.thanksBody : event.alreadySignedBody;
+    const savedSvg =
+      typeof window === "undefined"
+        ? ""
+        : window.localStorage.getItem(SIGNED_SVG_STORAGE_KEY) ?? "";
 
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-10 text-center">
@@ -79,6 +85,24 @@ export function SignExperience() {
         </p>
         <h1 className="mt-4 text-3xl font-semibold text-cream">{title}</h1>
         <p className="mt-3 text-base leading-7 text-cream/70">{body}</p>
+        {savedSvg ? (
+          <div className="mx-auto mt-8 flex w-full max-w-xs flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => downloadSvg(savedSvg, "chu-ky-cam-ket.svg")}
+              className="h-12 rounded-full bg-gold px-6 text-sm font-semibold text-[#1a1408]"
+            >
+              {event.thanksDownload}
+            </button>
+            <button
+              type="button"
+              onClick={() => void downloadPng(savedSvg, "chu-ky-cam-ket.png")}
+              className="h-12 rounded-full border border-white/15 px-6 text-sm font-medium text-cream/85"
+            >
+              {event.thanksDownloadPng}
+            </button>
+          </div>
+        ) : null}
       </main>
     );
   }

@@ -35,6 +35,15 @@ export function listLocalSignatures() {
   return readAll();
 }
 
+export function deleteLocalSignature(id: string) {
+  const rows = readAll().filter((row) => row.id !== id);
+  writeAll(rows);
+}
+
+export function clearLocalSignatures() {
+  writeAll([]);
+}
+
 export function addLocalSignature(svg: string): SignatureRow {
   const row: SignatureRow = {
     id: crypto.randomUUID(),

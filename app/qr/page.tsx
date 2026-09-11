@@ -13,5 +13,5 @@ export const dynamic = "force-dynamic";
 export default async function QrPage() {
   const origin = await getAppOrigin();
 
-  return <EventQr url={origin} />;
+  return <EventQr url={`${origin}/sign`} />;
 }

@@ -1,4 +1,9 @@
-import { addLocalSignature, listLocalSignatures } from "@/lib/signatures/local-store";
+import {
+  addLocalSignature,
+  clearLocalSignatures,
+  deleteLocalSignature,
+  listLocalSignatures,
+} from "@/lib/signatures/local-store";
 
 export const dynamic = "force-dynamic";
 
@@ -15,4 +20,14 @@ export async function POST(request: Request) {
   }
 
   return Response.json(addLocalSignature(svg), { status: 201 });
+}
+
+export async function DELETE(request: Request) {
+  const id = new URL(request.url).searchParams.get("id");
+  if (id) {
+    deleteLocalSignature(id);
+  } else {
+    clearLocalSignatures();
+  }
+  return Response.json({ ok: true });
 }

@@ -52,6 +52,49 @@ export async function listSignatures(): Promise<SignatureRow[]> {
   return (await res.json()) as SignatureRow[];
 }
 
+export async function deleteSignature(id: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      throw new Error("missing supabase");
+    }
+    const { error } = await supabase.from("signatures").delete().eq("id", id);
+    if (error) {
+      throw error;
+    }
+    return;
+  }
+
+  const res = await fetch(`/api/signatures?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error("delete failed");
+  }
+}
+
+export async function clearSignatures() {
+  if (hasSupabaseConfig()) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      throw new Error("missing supabase");
+    }
+    const { error } = await supabase
+      .from("signatures")
+      .delete()
+      .gte("created_at", "1970-01-01");
+    if (error) {
+      throw error;
+    }
+    return;
+  }
+
+  const res = await fetch("/api/signatures", { method: "DELETE" });
+  if (!res.ok) {
+    throw new Error("clear failed");
+  }
+}
+
 export function subscribeSignatures(
   onInsert: (row: SignatureRow) => void,
 ): () => void {
