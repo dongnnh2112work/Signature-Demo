@@ -2,20 +2,33 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { SignatureRow } from "@/lib/supabase/types";
 
-const filePath = path.join(process.cwd(), ".data", "signatures.json");
+const filePath = process.env.VERCEL
+  ? path.join("/tmp", "signatures.json")
+  : path.join(process.cwd(), ".data", "signatures.json");
+
+let memory: SignatureRow[] | null = null;
 
 function readAll(): SignatureRow[] {
+  if (memory) {
+    return memory;
+  }
   try {
     const parsed = JSON.parse(readFileSync(filePath, "utf8")) as unknown;
-    return Array.isArray(parsed) ? (parsed as SignatureRow[]) : [];
+    memory = Array.isArray(parsed) ? (parsed as SignatureRow[]) : [];
   } catch {
-    return [];
+    memory = [];
   }
+  return memory;
 }
 
 function writeAll(rows: SignatureRow[]) {
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(rows), "utf8");
+  memory = rows;
+  try {
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    writeFileSync(filePath, JSON.stringify(rows), "utf8");
+  } catch {
+    // Vercel serverless may not persist disk; memory still serves this instance.
+  }
 }
 
 export function listLocalSignatures() {
