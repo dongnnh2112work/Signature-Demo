@@ -9,6 +9,7 @@ import {
   deleteSignature,
   listSignatures,
 } from "@/lib/signatures/client";
+import type { SignatureRow } from "@/lib/supabase/types";
 import {
   downloadPng,
   downloadSignaturesOffline,
