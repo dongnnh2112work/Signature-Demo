@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SignatureSvg } from "@/components/SignatureSvg";
 import { event } from "@/lib/event";
+import { subscribeKeyMoment } from "@/lib/key-moment/client";
 import {
   listSignatures,
   subscribeSignatures,
@@ -63,6 +64,10 @@ export function SignatureWall() {
   const [items, setItems] = useState<SignatureRow[]>([]);
   const [popups, setPopups] = useState<Popup[]>([]);
   const [error, setError] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const [veilKey, setVeilKey] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioUnlockedRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<SignatureRow[]>([]);
   const timeoutsRef = useRef<number[]>([]);
@@ -87,6 +92,40 @@ export function SignatureWall() {
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  useEffect(() => subscribeKeyMoment(setRevealed), []);
+
+  useEffect(() => {
+    const unlock = () => {
+      audioUnlockedRef.current = true;
+      const video = videoRef.current;
+      if (video && !video.paused) {
+        video.muted = false;
+      }
+    };
+    window.addEventListener("pointerdown", unlock);
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    if (!revealed) {
+      video.pause();
+      return;
+    }
+
+    setVeilKey((key) => key + 1);
+    video.currentTime = 0;
+    const withSound = audioUnlockedRef.current;
+    video.muted = !withSound;
+    void video.play().catch(() => {
+      video.muted = true;
+      void video.play().catch(() => {});
+    });
+  }, [revealed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,6 +220,9 @@ export function SignatureWall() {
       ref={mainRef}
       className="relative h-dvh w-screen overflow-hidden bg-black text-cream"
     >
+      <div
+        className={`wall-scene absolute inset-0 ${revealed ? "wall-scene-leave" : "wall-scene-show"}`}
+      >
       <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-6 py-4">
         <div>
           <p className="text-[11px] font-medium tracking-[0.32em] text-gold uppercase">
@@ -244,6 +286,24 @@ export function SignatureWall() {
           </article>
         </div>
       ))}
+      </div>
+
+      <div
+        className={`wall-scene absolute inset-0 ${revealed ? "wall-scene-show" : "wall-scene-wait"}`}
+      >
+        <video
+          ref={videoRef}
+          className="h-full w-full object-cover"
+          src={event.keyVisualSrc}
+          playsInline
+          preload="auto"
+        />
+      </div>
+
+      <div
+        key={veilKey}
+        className={`wall-unveil absolute inset-0 z-40 ${veilKey > 0 ? "wall-unveil-play" : ""}`}
+      />
     </main>
   );
 }

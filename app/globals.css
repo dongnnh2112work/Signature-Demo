@@ -56,3 +56,51 @@ body {
 .signature-popup {
   animation: signature-popup 2.4s ease-out both;
 }
+
+.wall-scene {
+  transition:
+    opacity 1.7s cubic-bezier(0.45, 0, 0.15, 1),
+    transform 1.9s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 1.6s ease;
+}
+
+.wall-scene-show {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+}
+
+.wall-scene-leave {
+  opacity: 0;
+  transform: scale(1.045);
+  filter: blur(14px);
+}
+
+.wall-scene-wait {
+  opacity: 0;
+  transform: scale(1.06);
+  filter: blur(18px);
+}
+
+.wall-unveil {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(212, 176, 106, 0.55), transparent 58%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wall-unveil-play {
+  animation: wall-unveil 1.8s ease both;
+}
+
+@keyframes wall-unveil {
+  0% {
+    opacity: 0;
+  }
+  28% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

@@ -2,12 +2,12 @@
 
 import {
   getSupabaseBrowserClient,
-  hasSupabaseConfig,
+  useLocalDataStore,
 } from "@/lib/supabase/client";
 import type { SignatureRow } from "@/lib/supabase/types";
 
 export async function insertSignature(svg: string) {
-  if (hasSupabaseConfig()) {
+  if (!useLocalDataStore()) {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
       throw new Error("missing supabase");
@@ -30,7 +30,7 @@ export async function insertSignature(svg: string) {
 }
 
 export async function listSignatures(): Promise<SignatureRow[]> {
-  if (hasSupabaseConfig()) {
+  if (!useLocalDataStore()) {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
       throw new Error("missing supabase");
@@ -53,7 +53,7 @@ export async function listSignatures(): Promise<SignatureRow[]> {
 }
 
 export async function deleteSignature(id: string) {
-  if (hasSupabaseConfig()) {
+  if (!useLocalDataStore()) {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
       throw new Error("missing supabase");
@@ -74,7 +74,7 @@ export async function deleteSignature(id: string) {
 }
 
 export async function clearSignatures() {
-  if (hasSupabaseConfig()) {
+  if (!useLocalDataStore()) {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
       throw new Error("missing supabase");
@@ -98,7 +98,7 @@ export async function clearSignatures() {
 export function subscribeSignatures(
   onInsert: (row: SignatureRow) => void,
 ): () => void {
-  if (hasSupabaseConfig()) {
+  if (!useLocalDataStore()) {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
       return () => {};

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { SignatureSvg } from "@/components/SignatureSvg";
 import { event } from "@/lib/event";
+import { setKeyMoment, subscribeKeyMoment } from "@/lib/key-moment/client";
 import {
   clearSignatures,
   deleteSignature,
@@ -32,6 +33,8 @@ export function AdminDesk() {
   const [rows, setRows] = useState<SignatureRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
+  const [keyMoment, setKeyMomentOn] = useState(false);
+  const [keyMomentBusy, setKeyMomentBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -43,6 +46,13 @@ export function AdminDesk() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!authed) {
+      return;
+    }
+    return subscribeKeyMoment(setKeyMomentOn);
+  }, [authed]);
 
   useEffect(() => {
     void fetch("/api/admin/session")
@@ -80,6 +90,20 @@ export function AdminDesk() {
       setRows((prev) => prev.filter((row) => row.id !== id));
     } finally {
       setBusyId("");
+    }
+  }
+
+  async function toggleKeyMoment() {
+    const next = !keyMoment;
+    if (next && !window.confirm(event.adminKeyMomentConfirm)) {
+      return;
+    }
+    setKeyMomentBusy(true);
+    try {
+      await setKeyMoment(next);
+      setKeyMomentOn(next);
+    } finally {
+      setKeyMomentBusy(false);
     }
   }
 
@@ -169,6 +193,25 @@ export function AdminDesk() {
           </button>
         </div>
       </div>
+
+      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gold/35 bg-gold/10 px-4 py-4">
+        <div>
+          <p className="text-xs font-medium tracking-[0.22em] text-gold uppercase">
+            {event.adminKeyMomentTitle}
+          </p>
+          <p className="mt-1 text-sm text-cream/70">
+            {keyMoment ? event.adminKeyMomentOn : event.adminKeyMomentOff}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void toggleKeyMoment()}
+          disabled={keyMomentBusy}
+          className="h-11 rounded-full bg-cream px-5 text-sm font-semibold text-[#1a1408] disabled:opacity-40"
+        >
+          {keyMoment ? event.adminKeyMomentDeactivate : event.adminKeyMomentActivate}
+        </button>
+      </section>
 
       <div className="mt-5 flex flex-wrap gap-2 text-sm">
         <Link className="rounded-full bg-gold px-4 py-2 font-medium text-[#1a1408]" href="/wall">

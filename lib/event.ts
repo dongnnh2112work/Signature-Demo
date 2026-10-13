@@ -47,6 +47,13 @@ export const event = {
   adminDownload: "Tải SVG",
   adminDownloadPng: "Tải PNG",
   adminDownloadAll: "Tải tất cả (offline)",
+  adminKeyMomentTitle: "Key Moment",
+  adminKeyMomentOff: "Màn LED đang hiện chữ ký",
+  adminKeyMomentOn: "Đang chiếu Key Visual",
+  adminKeyMomentActivate: "Bật Key Moment",
+  adminKeyMomentDeactivate: "Về màn chữ ký",
+  adminKeyMomentConfirm: "Chiếu Key Visual lên màn LED?",
+  keyVisualSrc: "/key-visual.mp4",
   thanksDownload: "Tải SVG",
   thanksDownloadPng: "Tải PNG",
 } as const;
