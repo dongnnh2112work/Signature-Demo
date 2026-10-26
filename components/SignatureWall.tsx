@@ -10,6 +10,7 @@ import {
   listSignatures,
   subscribeSignatures,
 } from "@/lib/signatures/client";
+import { mergeSignatureRows } from "@/lib/signatures/pages";
 import { SIGNATURE_ASPECT, layoutSignatures } from "@/lib/signatures/layout";
 import type { SignatureRow } from "@/lib/supabase/types";
 
@@ -193,32 +194,44 @@ export function SignatureWall() {
       setItems(nextItems);
     }
 
+    async function pullSnapshot() {
+      const rows = await listSignatures();
+      if (cancelled) {
+        return;
+      }
+      const merged = mergeSignatureRows(itemsRef.current, rows);
+      for (const row of merged) {
+        seenIdsRef.current.add(row.id);
+      }
+      itemsRef.current = merged;
+      setItems(merged);
+    }
+
     async function start() {
+      // Subscribe first, then fetch + merge/dedupe so rows arriving
+      // during the initial read are not dropped.
+      unsubscribe = subscribeSignatures(
+        (row) => admit(row, true),
+        (id) => remove(id),
+        {
+          onReconnect: () => {
+            void pullSnapshot().catch(() => {
+              // Keep the current wall; the next event or reconnect retries.
+            });
+          },
+        },
+      );
+
       try {
-        const rows = await listSignatures();
-        if (cancelled) {
-          return;
+        await pullSnapshot();
+        if (!cancelled) {
+          setError("");
         }
-        for (const row of rows) {
-          seenIdsRef.current.add(row.id);
-        }
-        itemsRef.current = rows;
-        setItems(rows);
       } catch {
         if (!cancelled) {
           setError(event.wallError);
         }
-        return;
       }
-
-      if (cancelled) {
-        return;
-      }
-
-      unsubscribe = subscribeSignatures(
-        (row) => admit(row, true),
-        (id) => remove(id),
-      );
     }
 
     void start();

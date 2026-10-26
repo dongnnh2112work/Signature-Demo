@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE, isAdminTokenValid } from "@/lib/admin";
+import { allowAdminAction } from "@/lib/demo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { MESSAGE_MAX_LENGTH, POST_BODY_MAX } from "@/lib/sanitize";
 import {
@@ -69,7 +70,9 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const jar = await cookies();
-  if (!isAdminTokenValid(jar.get(ADMIN_COOKIE)?.value)) {
+  const tokenValid = isAdminTokenValid(jar.get(ADMIN_COOKIE)?.value);
+  // Demo mode never opens DELETE — still requires a signed admin cookie.
+  if (!allowAdminAction("delete", { tokenValid })) {
     return Response.json({ ok: false }, { status: 401 });
   }
 

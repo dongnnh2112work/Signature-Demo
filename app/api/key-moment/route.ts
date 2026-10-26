@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE, isAdminTokenValid } from "@/lib/admin";
+import { allowAdminAction } from "@/lib/demo";
 import { readKeyMoment, writeKeyMoment } from "@/lib/key-moment/server";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const jar = await cookies();
-  if (!isAdminTokenValid(jar.get(ADMIN_COOKIE)?.value)) {
+  const tokenValid = isAdminTokenValid(jar.get(ADMIN_COOKIE)?.value);
+  if (!allowAdminAction("key-moment", { tokenValid })) {
     return Response.json({ ok: false }, { status: 401 });
   }
 

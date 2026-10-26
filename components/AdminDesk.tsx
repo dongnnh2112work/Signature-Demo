@@ -31,6 +31,8 @@ function formatTime(value: string) {
 
 export function AdminDesk() {
   const [authed, setAuthed] = useState(false);
+  const [demo, setDemo] = useState(false);
+  const [demoBanner, setDemoBanner] = useState("");
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [rows, setRows] = useState<SignatureRow[]>([]);
@@ -39,7 +41,7 @@ export function AdminDesk() {
   const [keyMoment, setKeyMomentOn] = useState(false);
   const [keyMomentBusy, setKeyMomentBusy] = useState(false);
   const [confirm, setConfirm] = useState<"key" | "clear" | null>(null);
-  const [canDelete, setCanDelete] = useState(true);
+  const [canDelete, setCanDelete] = useState(false);
   const [actionError, setActionError] = useState("");
   const ignorePollUntilRef = useRef(0);
 
@@ -69,9 +71,16 @@ export function AdminDesk() {
   useEffect(() => {
     void fetch("/api/admin/session")
       .then((res) => res.json())
-      .then((data: { ok?: boolean; canDelete?: boolean }) => {
+      .then((data: {
+        ok?: boolean;
+        demo?: boolean;
+        demoBanner?: string | null;
+        canDelete?: boolean;
+      }) => {
         setAuthed(Boolean(data.ok));
-        setCanDelete(data.canDelete !== false);
+        setDemo(Boolean(data.demo));
+        setDemoBanner(data.demoBanner || event.adminDemoBanner);
+        setCanDelete(data.canDelete === true);
         if (data.ok) {
           void refresh();
         } else {
@@ -97,7 +106,7 @@ export function AdminDesk() {
       setPinError(data.error || event.adminPinError);
       return;
     }
-    setCanDelete(data.canDelete !== false);
+    setCanDelete(data.canDelete === true);
     setAuthed(true);
     void refresh();
   }
@@ -144,6 +153,15 @@ export function AdminDesk() {
   }
 
   if (!authed) {
+    if (loading) {
+      return (
+        <FestiveBackdrop className="min-h-dvh">
+          <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6">
+            <p className="text-sm text-cream/55">Đang tải…</p>
+          </main>
+        </FestiveBackdrop>
+      );
+    }
     return (
       <FestiveBackdrop className="min-h-dvh">
         <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6">
@@ -188,6 +206,15 @@ export function AdminDesk() {
   return (
     <FestiveBackdrop className="min-h-dvh">
       <main className="mx-auto min-h-dvh w-full max-w-3xl px-5 py-8">
+        {demo ? (
+          <p
+            role="status"
+            data-demo-banner=""
+            className="mb-5 rounded-xl border-2 border-[#e8c872] bg-[#c41e3a] px-4 py-3 text-sm font-semibold tracking-wide text-[#faf4e6] shadow-[0_0_0_3px_rgba(232,200,114,0.28)]"
+          >
+            {demoBanner || event.adminDemoBanner}
+          </p>
+        ) : null}
         <div className="flex items-start justify-between gap-4">
           <div>
             <Link href="/" className="text-xs text-cream/45">

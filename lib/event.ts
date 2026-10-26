@@ -57,6 +57,8 @@ export const event = {
   adminCancel: "Hủy",
   adminConfirm: "Xác nhận",
   adminActionError: "Không thực hiện được thao tác quản trị.",
+  adminDemoBanner:
+    "DEMO MODE – admin không khoá. Đặt ADMIN_PIN trước sự kiện thật.",
   adminNeedServiceRole:
     "Xóa lời chúc cần SUPABASE_SERVICE_ROLE_KEY (server-only) trên Vercel. Key Moment vẫn bật/tắt được với policy hiện tại cho đến khi chạy migration 004.",
   keyVisualSrc: "/key-visual.mp4",

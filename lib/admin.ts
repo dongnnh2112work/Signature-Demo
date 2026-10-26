@@ -1,25 +1,21 @@
+import "server-only";
+
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getAdminSessionSecret } from "@/lib/admin-pin";
+
+export {
+  adminPinMissingMessage,
+  adminSessionSecretMissingMessage,
+  getAdminPin,
+  getAdminSessionSecret,
+  mustHaveSessionSecret,
+  pinLoginBlocked,
+  pinsMatch,
+  recordPinLogin,
+} from "@/lib/admin-pin";
 
 export const ADMIN_COOKIE = "km_admin";
 const TOKEN_TTL_MS = 60 * 60 * 12 * 1000;
-
-export function getAdminPin() {
-  const pin = process.env.ADMIN_PIN?.trim();
-  return pin ? pin : null;
-}
-
-export function adminPinMissingMessage() {
-  if (process.env.NODE_ENV === "development") {
-    return "ADMIN_PIN is not set. Add it to .env.local (no default PIN).";
-  }
-  return "Admin PIN is not configured.";
-}
-
-export function getAdminSessionSecret() {
-  const secret =
-    process.env.ADMIN_SESSION_SECRET?.trim() || process.env.ADMIN_PIN?.trim();
-  return secret ? secret : null;
-}
 
 function hmac(secret: string, payload: string) {
   return createHmac("sha256", secret).update(payload).digest("hex");

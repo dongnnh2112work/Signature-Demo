@@ -1,5 +1,6 @@
 "use client";
 
+import { realtimeNeedsRefetch } from "@/lib/realtime";
 import {
   getSupabaseBrowserClient,
   preferLocalDataStore,
@@ -56,20 +57,24 @@ export function subscribeKeyMoment(onChange: (active: boolean) => void) {
   if (!supabase) {
     return () => {};
   }
+  const client = supabase;
 
-  void supabase
-    .from("event_state")
-    .select("active")
-    .eq("id", ROW_ID)
-    .maybeSingle()
-    .then(({ data, error }) => {
-      if (cancelled || error) {
-        return;
-      }
-      onChange(Boolean(data?.active));
-    });
+  function readState() {
+    void client
+      .from("event_state")
+      .select("active")
+      .eq("id", ROW_ID)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled || error) {
+          return;
+        }
+        onChange(Boolean(data?.active));
+      });
+  }
 
-  const channel = supabase
+  let disconnected = false;
+  const channel = client
     .channel("event-state-key-moment")
     .on(
       "postgres_changes",
@@ -84,10 +89,22 @@ export function subscribeKeyMoment(onChange: (active: boolean) => void) {
         onChange(Boolean(next.active));
       },
     )
-    .subscribe();
+    .subscribe((status) => {
+      if (cancelled) {
+        return;
+      }
+      const next = realtimeNeedsRefetch(status, disconnected);
+      disconnected = next.disconnected;
+      if (next.refetch) {
+        readState();
+      }
+    });
+
+  // Subscribe first, then fetch so inserts during the read are not missed.
+  readState();
 
   cleanup = () => {
-    void supabase.removeChannel(channel);
+    void client.removeChannel(channel);
   };
 
   return () => {

@@ -1,8 +1,12 @@
+import "server-only";
+
+import { keyMomentWriteStrategy } from "@/lib/demo";
 import { getLocalKeyMoment, setLocalKeyMoment } from "@/lib/key-moment/store";
 import {
   getSupabaseAnonServerClient,
   getSupabaseServiceClient,
   hasSupabaseConfig,
+  hasSupabaseServiceRole,
   SERVICE_ROLE_MISSING,
 } from "@/lib/supabase/server";
 
@@ -25,11 +29,16 @@ export async function readKeyMoment() {
 }
 
 export async function writeKeyMoment(active: boolean) {
-  if (!hasSupabaseConfig()) {
+  const strategy = keyMomentWriteStrategy({
+    hasSupabaseConfig: hasSupabaseConfig(),
+    hasServiceRole: hasSupabaseServiceRole(),
+  });
+
+  if (strategy === "local") {
     return { active: setLocalKeyMoment(active) };
   }
 
-  const service = getSupabaseServiceClient();
+  const service = strategy === "service" ? getSupabaseServiceClient() : null;
   const client = service ?? getSupabaseAnonServerClient();
   if (!client) {
     return { error: SERVICE_ROLE_MISSING, status: 503 as const };
@@ -41,7 +50,7 @@ export async function writeKeyMoment(active: boolean) {
     updated_at: new Date().toISOString(),
   };
 
-  if (service) {
+  if (strategy === "service" && service) {
     const { error } = await service.from("event_state").upsert(payload);
     if (error) {
       return { error: error.message, status: 500 as const };
@@ -49,9 +58,8 @@ export async function writeKeyMoment(active: boolean) {
     return { active };
   }
 
-  // Graceful path before SUPABASE_SERVICE_ROLE_KEY: current RLS still
-  // allows anon UPDATE on event_state. After migration 004 this fails
-  // closed with a clear message.
+  // Demo / pre-004 path: no service role key. Current RLS still allows
+  // anon UPDATE on event_state. After migration 004 this fails closed.
   const { error: updateError, data } = await client
     .from("event_state")
     .update({ active, updated_at: payload.updated_at })

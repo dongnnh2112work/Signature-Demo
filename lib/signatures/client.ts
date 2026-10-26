@@ -1,5 +1,11 @@
 "use client";
 
+import { realtimeNeedsRefetch } from "@/lib/realtime";
+import {
+  SIGNATURE_FETCH_PAGE,
+  hasMoreSignatureRows,
+  signatureRange,
+} from "@/lib/signatures/pages";
 import {
   getSupabaseBrowserClient,
   preferLocalDataStore,
@@ -39,18 +45,31 @@ export async function listSignatures(after?: string): Promise<SignatureRow[]> {
     if (!supabase) {
       throw new Error("missing supabase");
     }
-    let query = supabase
-      .from("signatures")
-      .select("id, svg, created_at")
-      .order("created_at", { ascending: true });
-    if (after) {
-      query = query.gt("created_at", after);
+    const rows: SignatureRow[] = [];
+    let offset = 0;
+    for (let page = 0; page < 100; page += 1) {
+      const { from, to } = signatureRange(offset);
+      let query = supabase
+        .from("signatures")
+        .select("id, svg, created_at")
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to);
+      if (after) {
+        query = query.gt("created_at", after);
+      }
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+      const batch = (data ?? []).map(toPublic);
+      rows.push(...batch);
+      if (!hasMoreSignatureRows(batch.length, SIGNATURE_FETCH_PAGE)) {
+        break;
+      }
+      offset += SIGNATURE_FETCH_PAGE;
     }
-    const { data, error } = await query;
-    if (error) {
-      throw error;
-    }
-    return (data ?? []).map(toPublic);
+    return rows;
   }
 
   const params = after ? `?after=${encodeURIComponent(after)}` : "";
@@ -86,6 +105,7 @@ export async function clearSignatures() {
 export function subscribeSignatures(
   onInsert: (row: SignatureRow) => void,
   onRemove?: (id: string) => void,
+  options?: { onReconnect?: () => void },
 ): () => void {
   if (!preferLocalDataStore()) {
     const supabase = getSupabaseBrowserClient();
@@ -93,6 +113,8 @@ export function subscribeSignatures(
       return () => {};
     }
 
+    let cancelled = false;
+    let disconnected = false;
     const channel = supabase
       .channel("signatures-wall")
       .on(
@@ -112,9 +134,19 @@ export function subscribeSignatures(
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (cancelled) {
+          return;
+        }
+        const next = realtimeNeedsRefetch(status, disconnected);
+        disconnected = next.disconnected;
+        if (next.refetch) {
+          options?.onReconnect?.();
+        }
+      });
 
     return () => {
+      cancelled = true;
       void supabase.removeChannel(channel);
     };
   }

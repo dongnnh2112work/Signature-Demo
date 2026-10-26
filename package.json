@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --experimental-strip-types --test lib/demo.test.ts lib/admin-pin.test.ts lib/realtime.test.ts lib/signatures/pages.test.ts",
     "bench:layout": "node --experimental-strip-types scripts/bench-layout.ts"
   },
   "dependencies": {
@@ -15,6 +17,7 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
     "signature_pad": "^5.1.4"
   },
   "devDependencies": {

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { sanitizeMessage, sanitizeSvgMarkup } from "@/lib/sanitize";
 import {
   addLocalSignature,
