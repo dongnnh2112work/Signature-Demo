@@ -1,7 +1,12 @@
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE, isAdminTokenValid } from "@/lib/admin";
-import { allowAdminAction } from "@/lib/demo";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { allowAdminAction, isDemoOpenAdmin } from "@/lib/demo";
+import {
+  SIGNATURE_POST_BURST,
+  SIGNATURE_POST_WINDOW_MS,
+  clientIp,
+  rateLimit,
+} from "@/lib/rate-limit";
 import { MESSAGE_MAX_LENGTH, POST_BODY_MAX } from "@/lib/sanitize";
 import {
   deleteWish,
@@ -14,7 +19,10 @@ import {
   localSignatureTotal,
 } from "@/lib/signatures/local-store";
 import { messageFromRow } from "@/lib/wish";
-import { hasSupabaseConfig } from "@/lib/supabase/server";
+import {
+  hasSupabaseConfig,
+  hasSupabaseServiceRole,
+} from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +55,13 @@ export async function POST(request: Request) {
   if (length > POST_BODY_MAX) {
     return Response.json({ error: "payload too large" }, { status: 413 });
   }
-  if (!rateLimit(`sig:${clientIp(request)}`, 80, 60_000)) {
+  if (
+    !rateLimit(
+      `sig:${clientIp(request)}`,
+      SIGNATURE_POST_BURST,
+      SIGNATURE_POST_WINDOW_MS,
+    )
+  ) {
     return Response.json({ error: "rate limited" }, { status: 429 });
   }
 
@@ -71,13 +85,14 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const jar = await cookies();
   const tokenValid = isAdminTokenValid(jar.get(ADMIN_COOKIE)?.value);
-  // Demo mode never opens DELETE — still requires a signed admin cookie.
-  if (!allowAdminAction("delete", { tokenValid })) {
+  const hasServiceRole = hasSupabaseServiceRole();
+  const demo = isDemoOpenAdmin();
+  if (!allowAdminAction("delete", { tokenValid, hasServiceRole })) {
     return Response.json({ ok: false }, { status: 401 });
   }
 
   const id = new URL(request.url).searchParams.get("id");
-  const result = await deleteWish(id);
+  const result = await deleteWish(id, { demo });
   if ("error" in result) {
     return Response.json({ ok: false, error: result.error }, { status: result.status });
   }

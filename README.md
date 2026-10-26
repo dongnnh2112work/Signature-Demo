@@ -49,7 +49,7 @@ Sau khi deploy PR này:
 2. Redeploy để cookie HMAC và service role có hiệu lực.
 3. **Rồi mới** chạy [`supabase/migrations/004_lock_admin_writes.sql`](supabase/migrations/004_lock_admin_writes.sql) trên SQL Editor. File này gỡ INSERT/UPDATE anon trên `event_state`. Wall vẫn SELECT + Realtime. Nếu chạy 004 trước khi có service role key, nút Key Moment sẽ 503.
 
-Trước khi có `SUPABASE_SERVICE_ROLE_KEY` và trước 004: LED + gửi chúc + bật Key Moment vẫn chạy (anon UPDATE còn hiệu lực). Xóa lời chúc trên `/admin` sẽ báo cần service role — xóa trên Dashboard vẫn được.
+Trước khi có `SUPABASE_SERVICE_ROLE_KEY` và trước 004: LED + gửi chúc + bật Key Moment vẫn chạy (anon UPDATE còn hiệu lực). Trong demo mode, nút **Xoá tất cả lời chúc** dùng anon DELETE (cần [`005_demo_anon_delete.sql`](supabase/migrations/005_demo_anon_delete.sql) trên project). Ngoài demo, DELETE vẫn cần cookie; có service role thì luôn cần cookie.
 
 In QR từ `/qr` trên domain production.
 
@@ -63,7 +63,7 @@ Một cờ **server-only** (`DEMO_OPEN_ADMIN`), **không** `NEXT_PUBLIC_`. Mặc
 
 **Tắt / về sự kiện thật:** đặt `ADMIN_PIN` và **không** để `DEMO_OPEN_ADMIN=1`. Request sau đó bắt PIN ngay. Redeploy sau khi thêm env trên Vercel.
 
-**Không mở trong demo:** `DELETE /api/signatures` vẫn cần cookie admin đã ký. Thiếu `SUPABASE_SERVICE_ROLE_KEY` thì DELETE vẫn 503. Rate limit + escape SVG/text giữ nguyên.
+**Xoá trong demo (không có service role):** `DELETE /api/signatures` được phép và đi qua anon server client. Có `SUPABASE_SERVICE_ROLE_KEY` thì vẫn bắt cookie. Ngoài demo luôn bắt cookie. Rate limit POST lời chúc: khoảng 1 lần / 2 giây, burst 5. Giới hạn 200 ký tự. `/sign` cho gửi lại ngay, không khoá localStorage.
 
 Wall nhận Key Moment realtime (Supabase Realtime khi có `NEXT_PUBLIC_SUPABASE_*`; không thì poll local).
 

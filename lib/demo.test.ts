@@ -6,6 +6,7 @@ import {
   allowAdminAction,
   isDemoOpenAdmin,
   keyMomentWriteStrategy,
+  signatureDeleteStrategy,
 } from "./demo.ts";
 
 describe("demo-mode gate", () => {
@@ -19,8 +20,8 @@ describe("demo-mode gate", () => {
     assert.equal(view.demo, true);
     assert.equal(view.demoBanner, DEMO_ADMIN_BANNER);
     assert.equal(view.keyMomentAllowed, true);
-    assert.equal(view.deleteAllowed, false);
-    assert.equal(view.canDelete, false);
+    assert.equal(view.deleteAllowed, true);
+    assert.equal(view.canDelete, true);
   });
 
   it("whitespace-only ADMIN_PIN is treated as unset => demo", () => {
@@ -92,11 +93,11 @@ describe("demo-mode gate", () => {
     assert.equal(view.demo, true);
     assert.equal(view.demoBanner, DEMO_ADMIN_BANNER);
     assert.equal(view.keyMomentAllowed, true);
-    assert.equal(view.deleteAllowed, false);
-    assert.equal(view.canDelete, false);
+    assert.equal(view.deleteAllowed, true);
+    assert.equal(view.canDelete, true);
   });
 
-  it("DELETE is never opened by demo mode", () => {
+  it("DELETE is allowed in demo without a service role key", () => {
     const demoEnvs = [
       {},
       { ADMIN_PIN: "" },
@@ -105,30 +106,63 @@ describe("demo-mode gate", () => {
     ];
     for (const env of demoEnvs) {
       assert.equal(
-        allowAdminAction("delete", { tokenValid: false, env }),
-        false,
+        allowAdminAction("delete", {
+          tokenValid: false,
+          hasServiceRole: false,
+          env,
+        }),
+        true,
       );
       const view = adminSessionView({
         tokenValid: false,
-        canDeleteWithAuth: true,
+        canDeleteWithAuth: false,
+        hasServiceRole: false,
         env,
       });
-      assert.equal(view.deleteAllowed, false);
-      assert.equal(view.canDelete, false);
+      assert.equal(view.deleteAllowed, true);
+      assert.equal(view.canDelete, true);
     }
   });
 
-  it("DELETE still requires a signed cookie when demo is on", () => {
+  it("DELETE requires a signed cookie when the service role key exists", () => {
+    assert.equal(
+      allowAdminAction("delete", {
+        tokenValid: false,
+        hasServiceRole: true,
+        env: { DEMO_OPEN_ADMIN: "1" },
+      }),
+      false,
+    );
     assert.equal(
       allowAdminAction("delete", {
         tokenValid: true,
+        hasServiceRole: true,
         env: { DEMO_OPEN_ADMIN: "1" },
       }),
       true,
     );
     const view = adminSessionView({
+      tokenValid: false,
+      canDeleteWithAuth: true,
+      hasServiceRole: true,
+      env: {},
+    });
+    assert.equal(view.canDelete, false);
+  });
+
+  it("DELETE always requires a cookie outside demo mode", () => {
+    assert.equal(
+      allowAdminAction("delete", {
+        tokenValid: false,
+        hasServiceRole: false,
+        env: { ADMIN_PIN: "secret" },
+      }),
+      false,
+    );
+    const view = adminSessionView({
       tokenValid: true,
       canDeleteWithAuth: true,
+      hasServiceRole: true,
       env: { ADMIN_PIN: "secret" },
     });
     assert.equal(view.ok, true);
@@ -166,6 +200,52 @@ describe("key moment write strategy", () => {
         hasServiceRole: true,
       }),
       "service",
+    );
+  });
+});
+
+describe("signature delete strategy", () => {
+  it("uses the local store when Supabase is not configured", () => {
+    assert.equal(
+      signatureDeleteStrategy({
+        hasSupabaseConfig: false,
+        hasServiceRole: false,
+        demo: true,
+      }),
+      "local",
+    );
+  });
+
+  it("uses anon DELETE in demo when the service role key is missing", () => {
+    assert.equal(
+      signatureDeleteStrategy({
+        hasSupabaseConfig: true,
+        hasServiceRole: false,
+        demo: true,
+      }),
+      "anon-delete",
+    );
+  });
+
+  it("uses the service role when present", () => {
+    assert.equal(
+      signatureDeleteStrategy({
+        hasSupabaseConfig: true,
+        hasServiceRole: true,
+        demo: true,
+      }),
+      "service",
+    );
+  });
+
+  it("is unavailable outside demo without a service role key", () => {
+    assert.equal(
+      signatureDeleteStrategy({
+        hasSupabaseConfig: true,
+        hasServiceRole: false,
+        demo: false,
+      }),
+      "unavailable",
     );
   });
 });

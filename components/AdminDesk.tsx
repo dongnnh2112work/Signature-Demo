@@ -239,7 +239,7 @@ export function AdminDesk() {
             <button
               type="button"
               onClick={() => setConfirm("clear")}
-              disabled={busyId === "all" || rows.length === 0}
+              disabled={busyId === "all" || rows.length === 0 || !canDelete}
               className="h-10 rounded-full border border-white/15 px-4 text-sm text-cream/80 disabled:opacity-40"
             >
               {event.adminClear}
@@ -342,7 +342,7 @@ export function AdminDesk() {
                 <button
                   type="button"
                   onClick={() => void remove(row.id)}
-                  disabled={busyId === row.id}
+                  disabled={busyId === row.id || !canDelete}
                   className="text-sm text-red-300 disabled:opacity-40"
                 >
                   {event.adminDelete}
