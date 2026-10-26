@@ -5,15 +5,24 @@ export type Box = {
   width: number;
   height: number;
   rotate: number;
+  page: number;
 };
 
-export const SIGNATURE_ASPECT = 0.52;
+export type LayoutResult = {
+  boxes: Box[];
+  pageCount: number;
+  cellWidth: number;
+  cellHeight: number;
+};
 
-const HEADER = 72;
-const MARGIN = 32;
-const GAP = 18;
-const MIN_WIDTH = 56;
-const MAX_WIDTH = 340;
+export const SIGNATURE_ASPECT = 0.48;
+
+const HEADER = 100;
+const MARGIN = 24;
+const GAP = 12;
+const MIN_WIDTH = 112;
+const MAX_WIDTH = 268;
+const STAR_RATIO = 0.2;
 
 function hashId(id: string) {
   let h = 2166136261;
@@ -22,10 +31,6 @@ function hashId(id: string) {
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;
-}
-
-function unit(n: number) {
-  return (n % 10000) / 10000;
 }
 
 export function boxesOverlap(a: Box, b: Box, gap = GAP) {
@@ -37,133 +42,153 @@ export function boxesOverlap(a: Box, b: Box, gap = GAP) {
   );
 }
 
-function preferred(
-  id: string,
-  width: number,
-  height: number,
+function starBlocked(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
   vw: number,
   vh: number,
 ) {
-  const a = hashId(id);
-  const b = hashId(`${id}:y`);
-  const minL = MARGIN;
-  const minT = HEADER;
-  const maxL = Math.max(minL, vw - MARGIN - width);
-  const maxT = Math.max(minT, vh - MARGIN - height);
-  return {
-    left: minL + unit(a) * (maxL - minL),
-    top: minT + unit(b) * (maxT - minT),
-  };
+  const cx = vw / 2;
+  const cy = vh * 0.52;
+  const r = Math.min(vw, vh) * STAR_RATIO;
+  const bx = x + w / 2;
+  const by = y + h / 2;
+  return (bx - cx) ** 2 + (by - cy) ** 2 < r * r;
 }
 
-function clampBox(box: Box, vw: number, vh: number) {
-  box.left = Math.min(
-    Math.max(MARGIN, box.left),
-    Math.max(MARGIN, vw - MARGIN - box.width),
-  );
-  box.top = Math.min(
-    Math.max(HEADER, box.top),
-    Math.max(HEADER, vh - MARGIN - box.height),
-  );
-}
+function cellsFor(vw: number, vh: number, width: number, height: number) {
+  const areaW = vw - MARGIN * 2;
+  const areaH = vh - HEADER - MARGIN;
+  const colStep = width + GAP;
+  const rowStep = height + GAP;
+  const cols = Math.max(1, Math.floor((areaW + GAP) / colStep));
+  const rows = Math.max(1, Math.floor((areaH + GAP) / rowStep));
+  const gridW = cols * colStep - GAP;
+  const gridH = rows * rowStep - GAP;
+  const ox = MARGIN + Math.max(0, (areaW - gridW) / 2);
+  const oy = HEADER + Math.max(0, (areaH - gridH) / 2);
+  const cells: { left: number; top: number }[] = [];
 
-function separate(boxes: Box[], vw: number, vh: number) {
-  for (let iter = 0; iter < 80; iter += 1) {
-    let moved = false;
-    for (let i = 0; i < boxes.length; i += 1) {
-      for (let j = i + 1; j < boxes.length; j += 1) {
-        const a = boxes[i];
-        const b = boxes[j];
-        const dx = a.left + a.width / 2 - (b.left + b.width / 2);
-        const dy = a.top + a.height / 2 - (b.top + b.height / 2);
-        const overlapX = (a.width + b.width) / 2 + GAP - Math.abs(dx || 0.01);
-        const overlapY = (a.height + b.height) / 2 + GAP - Math.abs(dy || 0.01);
-        if (overlapX <= 0 || overlapY <= 0) {
-          continue;
-        }
-        if (overlapX < overlapY) {
-          const push = overlapX / 2 + 0.8;
-          const dir = dx < 0 ? -1 : 1;
-          a.left += dir * push;
-          b.left -= dir * push;
-        } else {
-          const push = overlapY / 2 + 0.8;
-          const dir = dy < 0 ? -1 : 1;
-          a.top += dir * push;
-          b.top -= dir * push;
-        }
-        moved = true;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      const left = ox + c * colStep;
+      const top = oy + r * rowStep;
+      if (!starBlocked(left, top, width, height, vw, vh)) {
+        cells.push({ left, top });
       }
     }
-    for (const box of boxes) {
-      clampBox(box, vw, vh);
+  }
+
+  if (cells.length === 0) {
+    cells.push({ left: MARGIN, top: HEADER });
+  }
+
+  const cx = vw / 2;
+  const cy = vh * 0.52;
+  cells.sort((a, b) => {
+    const ar = Math.hypot(a.left + width / 2 - cx, a.top + height / 2 - cy);
+    const br = Math.hypot(b.left + width / 2 - cx, b.top + height / 2 - cy);
+    const ringA = Math.round(ar / 90);
+    const ringB = Math.round(br / 90);
+    if (ringA !== ringB) {
+      return ringA - ringB;
     }
-    if (!moved) {
+    const aa = Math.atan2(a.top - cy, a.left - cx);
+    const ba = Math.atan2(b.top - cy, b.left - cx);
+    return aa - ba;
+  });
+
+  return cells;
+}
+
+function pack(ids: string[], vw: number, vh: number): LayoutResult {
+  let chosenW = MIN_WIDTH;
+  let chosenCells: { left: number; top: number }[] = cellsFor(
+    vw,
+    vh,
+    MIN_WIDTH,
+    Math.round(MIN_WIDTH * SIGNATURE_ASPECT),
+  );
+
+  for (let w = MAX_WIDTH; w >= MIN_WIDTH; w -= 4) {
+    const height = Math.round(w * SIGNATURE_ASPECT);
+    const cells = cellsFor(vw, vh, w, height);
+    if (cells.length >= ids.length) {
+      chosenW = w;
+      chosenCells = cells;
       break;
     }
-  }
-}
-
-function hasOverlap(boxes: Box[]) {
-  for (let i = 0; i < boxes.length; i += 1) {
-    for (let j = i + 1; j < boxes.length; j += 1) {
-      if (boxesOverlap(boxes[i], boxes[j], GAP - 1)) {
-        return true;
-      }
+    if (w === MIN_WIDTH) {
+      chosenW = w;
+      chosenCells = cells;
     }
   }
-  return false;
-}
 
-function tryPack(ids: string[], width: number, vw: number, vh: number) {
-  const height = Math.round(width * SIGNATURE_ASPECT);
-  if (height < 30) {
-    return null;
-  }
-  const boxes: Box[] = ids.map((id) => {
-    const pos = preferred(id, width, height, vw, vh);
+  const height = Math.round(chosenW * SIGNATURE_ASPECT);
+  const perPage = Math.max(1, chosenCells.length);
+  const pageCount = Math.max(1, Math.ceil(ids.length / perPage));
+  const boxes: Box[] = ids.map((id, i) => {
+    const slot = chosenCells[i % perPage];
+    const jitter = (hashId(id) % 9) - 4;
     return {
       id,
-      left: pos.left,
-      top: pos.top,
-      width,
+      left: slot.left,
+      top: slot.top,
+      width: chosenW,
       height,
-      rotate: ((hashId(id) % 9) - 4) * 0.85,
+      rotate: jitter * 0.55,
+      page: Math.floor(i / perPage),
     };
   });
-  separate(boxes, vw, vh);
-  if (hasOverlap(boxes)) {
-    return null;
-  }
-  return boxes;
+
+  return { boxes, pageCount, cellWidth: chosenW, cellHeight: height };
 }
 
-export function layoutSignatures(ids: string[], vw: number, vh: number) {
+type Cache = {
+  vw: number;
+  vh: number;
+  ids: string[];
+  result: LayoutResult;
+};
+
+let cache: Cache | null = null;
+
+export function layoutSignatures(ids: string[], vw: number, vh: number): LayoutResult {
   if (ids.length === 0 || vw < 120 || vh < 120) {
-    return [] as Box[];
+    return { boxes: [], pageCount: 1, cellWidth: 0, cellHeight: 0 };
   }
 
-  let lo = MIN_WIDTH;
-  let hi = MAX_WIDTH;
-  let best: Box[] = [];
-
-  while (lo <= hi) {
-    const mid = Math.round((lo + hi) / 2);
-    const packed = tryPack(ids, mid, vw, vh);
-    if (packed) {
-      best = packed;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
+  if (
+    cache &&
+    cache.vw === vw &&
+    cache.vh === vh &&
+    cache.ids.length === ids.length &&
+    cache.ids.every((id, i) => id === ids[i])
+  ) {
+    return cache.result;
   }
 
-  if (best.length === 0) {
-    return tryPack(ids, MIN_WIDTH, vw, vh) ?? [];
+  const fresh = pack(ids, vw, vh);
+
+  if (
+    cache &&
+    cache.vw === vw &&
+    cache.vh === vh &&
+    cache.result.cellWidth === fresh.cellWidth &&
+    cache.result.pageCount === fresh.pageCount &&
+    cache.ids.length < ids.length &&
+    cache.ids.every((id, i) => ids[i] === id)
+  ) {
+    const boxes = cache.result.boxes.concat(fresh.boxes.slice(cache.ids.length));
+    const result = { ...fresh, boxes };
+    cache = { vw, vh, ids: ids.slice(), result };
+    return result;
   }
 
-  const relaxed = Math.max(MIN_WIDTH, Math.round(best[0].width * 0.9));
-  return tryPack(ids, relaxed, vw, vh) ?? best;
+  cache = { vw, vh, ids: ids.slice(), result: fresh };
+  return fresh;
 }
 
 export function placePopup(
@@ -181,22 +206,35 @@ export function placePopup(
     return null;
   }
 
-  for (let i = 0; i < 120; i += 1) {
-    const left = minL + Math.random() * (maxL - minL);
-    const top = minT + Math.random() * (maxT - minT);
-    const candidate: Box = {
-      id: "popup",
-      left,
-      top,
-      width,
-      height,
-      rotate: 0,
-    };
+  const cx = vw / 2 - width / 2;
+  const cy = vh * 0.28 - height / 2;
+  const preferred = { left: cx, top: Math.max(minT, cy), rotate: -2 };
+  const candidate: Box = {
+    id: "popup",
+    left: preferred.left,
+    top: preferred.top,
+    width,
+    height,
+    rotate: 0,
+    page: 0,
+  };
+  if (!occupied.some((box) => boxesOverlap(candidate, box, 12))) {
+    return preferred;
+  }
+
+  for (let i = 0; i < 40; i += 1) {
+    const left = minL + ((hashId(`p${i}`) % 1000) / 1000) * (maxL - minL);
+    const top = minT + ((hashId(`t${i}`) % 1000) / 1000) * (maxT - minT);
+    candidate.left = left;
+    candidate.top = top;
     if (occupied.some((box) => boxesOverlap(candidate, box, 12))) {
       continue;
     }
-    return { left, top, rotate: (Math.random() - 0.5) * 14 };
+    if (starBlocked(left, top, width, height, vw, vh)) {
+      continue;
+    }
+    return { left, top, rotate: ((i % 9) - 4) * 1.2 };
   }
 
-  return null;
+  return { left: minL, top: minT, rotate: 0 };
 }

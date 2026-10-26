@@ -2,14 +2,10 @@
 
 import {
   getSupabaseBrowserClient,
-  useLocalDataStore,
+  preferLocalDataStore,
 } from "@/lib/supabase/client";
 
 const ROW_ID = "key_moment";
-
-function preferLocalStore() {
-  return useLocalDataStore();
-}
 
 async function readLocal() {
   const res = await fetch("/api/key-moment", { cache: "no-store" });
@@ -21,29 +17,14 @@ async function readLocal() {
 }
 
 export async function setKeyMoment(active: boolean) {
-  if (!preferLocalStore()) {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      throw new Error("missing supabase");
-    }
-    const { error } = await supabase.from("event_state").upsert({
-      id: ROW_ID,
-      active,
-      updated_at: new Date().toISOString(),
-    });
-    if (error) {
-      throw error;
-    }
-    return;
-  }
-
   const res = await fetch("/api/key-moment", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ active }),
   });
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) {
-    throw new Error("key moment write failed");
+    throw new Error(body.error || "key moment write failed");
   }
 }
 
@@ -51,7 +32,7 @@ export function subscribeKeyMoment(onChange: (active: boolean) => void) {
   let cancelled = false;
   let cleanup = () => {};
 
-  if (preferLocalStore()) {
+  if (preferLocalDataStore()) {
     const poll = () => {
       void readLocal()
         .then((active) => {
@@ -64,7 +45,7 @@ export function subscribeKeyMoment(onChange: (active: boolean) => void) {
         });
     };
     poll();
-    const timer = window.setInterval(poll, 400);
+    const timer = window.setInterval(poll, 1000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);

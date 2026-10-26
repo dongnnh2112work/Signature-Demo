@@ -1,33 +1,82 @@
+import { cookies } from "next/headers";
+import { ADMIN_COOKIE, isAdminTokenValid } from "@/lib/admin";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { MESSAGE_MAX_LENGTH, POST_BODY_MAX } from "@/lib/sanitize";
 import {
-  addLocalSignature,
-  clearLocalSignatures,
-  deleteLocalSignature,
+  deleteWish,
+  insertWish,
+  parseWishBody,
+} from "@/lib/signatures/server";
+import {
   listLocalSignatures,
+  localSignatureCursor,
+  localSignatureTotal,
 } from "@/lib/signatures/local-store";
+import { messageFromRow } from "@/lib/wish";
+import { hasSupabaseConfig } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  return Response.json(listLocalSignatures());
+function publicRow(row: { id: string; created_at: string; message?: string; svg?: string }) {
+  return {
+    id: row.id,
+    created_at: row.created_at,
+    message: messageFromRow(row),
+  };
+}
+
+export async function GET(request: Request) {
+  if (hasSupabaseConfig()) {
+    return Response.json(
+      { error: "use supabase select" },
+      { status: 404 },
+    );
+  }
+  const after = new URL(request.url).searchParams.get("after") ?? undefined;
+  const rows = listLocalSignatures(after).map(publicRow);
+  return Response.json({
+    rows,
+    cursor: localSignatureCursor(),
+    total: localSignatureTotal(),
+  });
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { svg?: unknown };
-  const svg = typeof body.svg === "string" ? body.svg : "";
-
-  if (svg.length < 40) {
-    return Response.json({ error: "invalid signature" }, { status: 400 });
+  const length = Number(request.headers.get("content-length") || "0");
+  if (length > POST_BODY_MAX) {
+    return Response.json({ error: "payload too large" }, { status: 413 });
+  }
+  if (!rateLimit(`sig:${clientIp(request)}`, 80, 60_000)) {
+    return Response.json({ error: "rate limited" }, { status: 429 });
   }
 
-  return Response.json(addLocalSignature(svg), { status: 201 });
+  const body = (await request.json()) as { message?: unknown; svg?: unknown };
+  const parsed = parseWishBody(body);
+  if ("error" in parsed) {
+    return Response.json({ error: parsed.error }, { status: 400 });
+  }
+  const message = parsed.message;
+  if (message.length < 2 || message.length > MESSAGE_MAX_LENGTH) {
+    return Response.json({ error: "invalid wish" }, { status: 400 });
+  }
+
+  const result = await insertWish(message);
+  if ("error" in result) {
+    return Response.json({ error: result.error }, { status: result.status });
+  }
+  return Response.json(result.row, { status: 201 });
 }
 
 export async function DELETE(request: Request) {
+  const jar = await cookies();
+  if (!isAdminTokenValid(jar.get(ADMIN_COOKIE)?.value)) {
+    return Response.json({ ok: false }, { status: 401 });
+  }
+
   const id = new URL(request.url).searchParams.get("id");
-  if (id) {
-    deleteLocalSignature(id);
-  } else {
-    clearLocalSignatures();
+  const result = await deleteWish(id);
+  if ("error" in result) {
+    return Response.json({ ok: false, error: result.error }, { status: result.status });
   }
   return Response.json({ ok: true });
 }

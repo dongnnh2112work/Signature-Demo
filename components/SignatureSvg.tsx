@@ -1,9 +1,4 @@
-function sanitizeSvg(svg: string) {
-  return svg
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/\s+on\w+="[^"]*"/gi, "")
-    .replace(/\s+on\w+='[^']*'/gi, "");
-}
+import { RasterSvg } from "@/components/RasterSvg";
 
 type Props = {
   svg: string;
@@ -11,10 +6,5 @@ type Props = {
 };
 
 export function SignatureSvg({ svg, className }: Props) {
-  return (
-    <div
-      className={`signature-svg ${className ?? ""}`}
-      dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }}
-    />
-  );
+  return <RasterSvg svg={svg} className={className} />;
 }
