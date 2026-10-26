@@ -26,9 +26,10 @@ export const KM_FLASH_HOLD_MAX_MS = 500;
 export const KM_FLASH_PEAK_MS = Math.round(KM_FLASH_MS * 0.34);
 /**
  * Start playback after the bloom is covering, late enough that
- * currentTime at the 820ms fade stays under 0.5s.
+ * currentTime at the 820ms fade stays under 0.5s even with a
+ * couple of frames of sampling lag.
  */
-export const KM_FLASH_PLAY_AT_MS = Math.max(KM_FLASH_PEAK_MS, KM_FLASH_MS - 480);
+export const KM_FLASH_PLAY_AT_MS = Math.max(KM_FLASH_PEAK_MS, KM_FLASH_MS - 300);
 export const KM_HAVE_ENOUGH_DATA = 4;
 export const KM_CROSSFADE_MS = 720;
 export const KM_RETURN_MS = 700;
