@@ -120,6 +120,19 @@ body {
   transition: transform 0.5s ease;
 }
 
+.wish-tile-fly {
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+}
+
+.wish-tile-fly .wish-tile-inner {
+  animation: none;
+}
+
+.wish-tile-return {
+  animation: wish-enter 0.7s ease both;
+}
+
 .wish-tile-inner {
   height: 100%;
   width: 100%;
@@ -150,49 +163,83 @@ body {
 }
 
 .wall-scene {
-  transition:
-    opacity 1.5s cubic-bezier(0.45, 0, 0.15, 1),
-    transform 1.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.72s ease;
 }
 
 .wall-scene-show {
   opacity: 1;
-  transform: scale(1);
-}
-
-.wall-scene-leave {
-  opacity: 0;
-  transform: scale(1.04);
 }
 
 .wall-scene-wait {
   opacity: 0;
-  transform: scale(1.05);
 }
 
-.wall-unveil {
-  background: radial-gradient(
-    circle at 50% 45%,
-    rgba(232, 200, 114, 0.55),
-    transparent 58%
-  );
-  opacity: 0;
-  pointer-events: none;
+.wall-scene-cut {
+  opacity: 1;
+  transition: none;
 }
 
-.wall-unveil-play {
-  animation: wall-unveil 1.8s ease both;
+.km-logo-pulse {
+  animation: km-logo-pulse 1.88s cubic-bezier(0.7, 0, 1, 0.15) both;
 }
 
-@keyframes wall-unveil {
+@keyframes km-logo-pulse {
   0% {
-    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale(1);
   }
-  28% {
+  60% {
+    transform: translate3d(-50%, -50%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-50%, -50%, 0) scale(1.24);
+  }
+}
+
+.km-glow-pulse {
+  animation: km-glow-pulse 1.88s cubic-bezier(0.7, 0, 1, 0.15) both;
+}
+
+@keyframes km-glow-pulse {
+  0% {
+    transform: translate3d(-50%, -50%, 0) scale(0.92);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate3d(-50%, -50%, 0) scale(1.5);
     opacity: 1;
+  }
+}
+
+.km-flash {
+  position: absolute;
+  inset: -30%;
+  z-index: 50;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at var(--km-flash-x, 50%) var(--km-flash-y, 50%),
+    #ffffff 0%,
+    #fff6d4 12%,
+    rgba(232, 200, 114, 0.95) 32%,
+    rgba(255, 255, 255, 0.55) 52%,
+    transparent 70%
+  );
+  transform-origin: var(--km-flash-x, 50%) var(--km-flash-y, 50%);
+  will-change: transform, opacity;
+  animation: km-flash 820ms ease-out both;
+}
+
+@keyframes km-flash {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.18);
+  }
+  34% {
+    opacity: 1;
+    transform: scale(1.18);
   }
   100% {
     opacity: 0;
+    transform: scale(1.55);
   }
 }
 
@@ -224,13 +271,20 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .wish-enter,
   .wish-tile-inner,
-  .lantern-sway,
-  .wall-unveil-play {
+  .wish-tile-fly,
+  .wish-tile-return,
+  .km-logo-pulse,
+  .km-glow-pulse,
+  .km-flash,
+  .lantern-sway {
     animation: none;
   }
 
-  .wish-tile,
-  .wall-scene {
+  .wish-tile {
     transition: none;
+  }
+
+  .wall-scene {
+    transition: opacity 0.72s ease;
   }
 }

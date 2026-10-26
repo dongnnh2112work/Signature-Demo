@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/demo.test.ts lib/admin-pin.test.ts lib/realtime.test.ts lib/signatures/pages.test.ts lib/signatures/layout.test.ts lib/signatures/entrance.test.ts lib/sign-flow.test.ts lib/rate-limit.test.ts lib/client-id.test.ts lib/key-moment/safety.test.ts",
+    "test": "node --experimental-strip-types --test lib/demo.test.ts lib/admin-pin.test.ts lib/realtime.test.ts lib/signatures/pages.test.ts lib/signatures/layout.test.ts lib/signatures/entrance.test.ts lib/sign-flow.test.ts lib/rate-limit.test.ts lib/client-id.test.ts lib/key-moment/safety.test.ts lib/key-moment/sequence.test.ts",
     "bench:layout": "node --experimental-strip-types scripts/bench-layout.ts"
   },
   "dependencies": {
