@@ -4,6 +4,7 @@ import {
   SIGNATURE_FETCH_PAGE,
   hasMoreSignatureRows,
   mergeSignatureRows,
+  reconcileSignatureSnapshot,
   signatureRange,
 } from "./pages.ts";
 
@@ -32,5 +33,22 @@ describe("signature pagination", () => {
       { id: "b", created_at: "2" },
       { id: "c", created_at: "3" },
     ]);
+  });
+
+  it("drops wishes missing from a snapshot unless they arrived during the fetch", () => {
+    const current = [
+      { id: "keep", created_at: "1" },
+      { id: "deleted", created_at: "2" },
+      { id: "live", created_at: "3" },
+    ];
+    const snapshot = [{ id: "keep", created_at: "1" }];
+    assert.deepEqual(
+      reconcileSignatureSnapshot(current, snapshot, ["live"]),
+      [
+        { id: "keep", created_at: "1" },
+        { id: "live", created_at: "3" },
+      ],
+    );
+    assert.deepEqual(reconcileSignatureSnapshot(current, [], []), []);
   });
 });

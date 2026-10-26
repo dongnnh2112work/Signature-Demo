@@ -29,9 +29,11 @@ function sleep(ms: number) {
 
 export async function GET() {
   const jar = await cookies();
+  const hasServiceRole = hasSupabaseServiceRole();
   const view = adminSessionView({
     tokenValid: isAdminTokenValid(jar.get(ADMIN_COOKIE)?.value),
-    canDeleteWithAuth: !hasSupabaseConfig() || hasSupabaseServiceRole(),
+    canDeleteWithAuth: !hasSupabaseConfig() || hasServiceRole,
+    hasServiceRole,
   });
   return NextResponse.json({
     ok: view.ok,
@@ -78,10 +80,15 @@ export async function POST(request: Request) {
   const token = createAdminToken();
   if (!token) {
     if (demo) {
+      const view = adminSessionView({
+        tokenValid: false,
+        canDeleteWithAuth: !hasSupabaseConfig() || hasSupabaseServiceRole(),
+        hasServiceRole: hasSupabaseServiceRole(),
+      });
       return NextResponse.json({
         ok: true,
         demo: true,
-        canDelete: false,
+        canDelete: view.canDelete,
       });
     }
     return NextResponse.json(
@@ -90,9 +97,14 @@ export async function POST(request: Request) {
     );
   }
 
+  const loggedIn = adminSessionView({
+    tokenValid: true,
+    canDeleteWithAuth: !hasSupabaseConfig() || hasSupabaseServiceRole(),
+    hasServiceRole: hasSupabaseServiceRole(),
+  });
   const res = NextResponse.json({
     ok: true,
-    canDelete: !hasSupabaseConfig() || hasSupabaseServiceRole(),
+    canDelete: loggedIn.canDelete,
   });
   res.cookies.set(ADMIN_COOKIE, token, {
     httpOnly: true,

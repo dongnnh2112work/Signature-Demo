@@ -131,6 +131,8 @@ export function subscribeSignatures(
           const row = payload.old as { id?: string };
           if (row.id) {
             onRemove?.(row.id);
+          } else {
+            options?.onReconnect?.();
           }
         },
       )
@@ -151,15 +153,15 @@ export function subscribeSignatures(
     };
   }
 
-  let cursor = "";
   const poll = () => {
-    void listSignatures(cursor || undefined)
+    if (options?.onReconnect) {
+      options.onReconnect();
+      return;
+    }
+    void listSignatures()
       .then((rows) => {
         for (const row of rows) {
           onInsert(row);
-          if (row.created_at > cursor) {
-            cursor = row.created_at;
-          }
         }
       })
       .catch(() => {

@@ -13,7 +13,10 @@
  *   ADMIN_PIN is set AND DEMO_OPEN_ADMIN is not exactly "1".
  *
  * Setting ADMIN_PIN immediately restores PIN login on the next request.
- * DELETE is never opened by demo mode (still requires a signed admin cookie).
+ *
+ * DELETE: cookie required when SUPABASE_SERVICE_ROLE_KEY exists, and always
+ * required outside demo. In demo without the service role key, DELETE is
+ * allowed and uses the anon server client (migration 005).
  */
 
 export const DEMO_OPEN_ADMIN_FLAG = "1";
@@ -32,6 +35,12 @@ export type AdminAction = "desk" | "key-moment" | "delete";
 
 export type KeyMomentWriteStrategy = "local" | "service" | "anon-update";
 
+export type SignatureDeleteStrategy =
+  | "local"
+  | "service"
+  | "anon-delete"
+  | "unavailable";
+
 export function isDemoOpenAdmin(env: EnvLike = process.env): boolean {
   if (env.DEMO_OPEN_ADMIN === DEMO_OPEN_ADMIN_FLAG) {
     return true;
@@ -39,13 +48,20 @@ export function isDemoOpenAdmin(env: EnvLike = process.env): boolean {
   return !env.ADMIN_PIN?.trim();
 }
 
-/** Desk + Key Moment may open in demo; DELETE never skips auth. */
+/**
+ * Desk + Key Moment may open in demo.
+ * DELETE: cookie if a service role key exists, or outside demo;
+ * demo without that key may delete via the anon client.
+ */
 export function allowAdminAction(
   action: AdminAction,
-  input: { tokenValid: boolean; env?: EnvLike },
+  input: { tokenValid: boolean; hasServiceRole?: boolean; env?: EnvLike },
 ): boolean {
   if (action === "delete") {
-    return input.tokenValid;
+    if (input.hasServiceRole || !isDemoOpenAdmin(input.env)) {
+      return input.tokenValid;
+    }
+    return true;
   }
   return input.tokenValid || isDemoOpenAdmin(input.env);
 }
@@ -53,23 +69,28 @@ export function allowAdminAction(
 export function adminSessionView(input: {
   tokenValid: boolean;
   canDeleteWithAuth: boolean;
+  hasServiceRole?: boolean;
   env?: EnvLike;
 }) {
   const env = input.env;
   const demo = isDemoOpenAdmin(env);
+  const hasServiceRole = Boolean(input.hasServiceRole);
+  const deleteAllowed = allowAdminAction("delete", {
+    tokenValid: input.tokenValid,
+    hasServiceRole,
+    env,
+  });
   return {
     ok: allowAdminAction("desk", { tokenValid: input.tokenValid, env }),
     demo,
     demoBanner: demo ? DEMO_ADMIN_BANNER : null,
-    canDelete: input.tokenValid && input.canDeleteWithAuth,
+    canDelete:
+      deleteAllowed && (input.canDeleteWithAuth || (demo && !hasServiceRole)),
     keyMomentAllowed: allowAdminAction("key-moment", {
       tokenValid: input.tokenValid,
       env,
     }),
-    deleteAllowed: allowAdminAction("delete", {
-      tokenValid: input.tokenValid,
-      env,
-    }),
+    deleteAllowed,
   };
 }
 
@@ -89,4 +110,21 @@ export function keyMomentWriteStrategy(input: {
     return "service";
   }
   return "anon-update";
+}
+
+export function signatureDeleteStrategy(input: {
+  hasSupabaseConfig: boolean;
+  hasServiceRole: boolean;
+  demo: boolean;
+}): SignatureDeleteStrategy {
+  if (!input.hasSupabaseConfig) {
+    return "local";
+  }
+  if (input.hasServiceRole) {
+    return "service";
+  }
+  if (input.demo) {
+    return "anon-delete";
+  }
+  return "unavailable";
 }

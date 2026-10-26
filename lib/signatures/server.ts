@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isDemoOpenAdmin, signatureDeleteStrategy } from "@/lib/demo";
 import { sanitizeMessage, sanitizeSvgMarkup } from "@/lib/sanitize";
 import {
   addLocalSignature,
@@ -10,6 +11,7 @@ import {
   getSupabaseAnonServerClient,
   getSupabaseServiceClient,
   hasSupabaseConfig,
+  hasSupabaseServiceRole,
   SERVICE_ROLE_MISSING,
 } from "@/lib/supabase/server";
 import { messageFromRow, messageToSvg } from "@/lib/wish";
@@ -52,8 +54,17 @@ export async function insertWish(message: string) {
   return { row: addLocalSignature(message) };
 }
 
-export async function deleteWish(id?: string | null) {
-  if (!hasSupabaseConfig()) {
+export async function deleteWish(
+  id?: string | null,
+  opts?: { demo?: boolean },
+) {
+  const strategy = signatureDeleteStrategy({
+    hasSupabaseConfig: hasSupabaseConfig(),
+    hasServiceRole: hasSupabaseServiceRole(),
+    demo: opts?.demo ?? isDemoOpenAdmin(),
+  });
+
+  if (strategy === "local") {
     if (id) {
       deleteLocalSignature(id);
     } else {
@@ -62,14 +73,20 @@ export async function deleteWish(id?: string | null) {
     return { ok: true as const };
   }
 
-  const service = getSupabaseServiceClient();
-  if (!service) {
+  const client =
+    strategy === "service"
+      ? getSupabaseServiceClient()
+      : strategy === "anon-delete"
+        ? getSupabaseAnonServerClient()
+        : null;
+
+  if (!client) {
     return { error: SERVICE_ROLE_MISSING, status: 503 as const };
   }
 
   const query = id
-    ? service.from("signatures").delete().eq("id", id)
-    : service.from("signatures").delete().gte("created_at", "1970-01-01");
+    ? client.from("signatures").delete().eq("id", id)
+    : client.from("signatures").delete().gte("created_at", "1970-01-01");
   const { error } = await query;
   if (error) {
     return { error: error.message, status: 500 as const };

@@ -10,7 +10,7 @@ import {
   listSignatures,
   subscribeSignatures,
 } from "@/lib/signatures/client";
-import { mergeSignatureRows } from "@/lib/signatures/pages";
+import { reconcileSignatureSnapshot } from "@/lib/signatures/pages";
 import { SIGNATURE_ASPECT, layoutSignatures } from "@/lib/signatures/layout";
 import type { SignatureRow } from "@/lib/supabase/types";
 
@@ -83,6 +83,7 @@ export function SignatureWall() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioUnlockedRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const admittedAtRef = useRef(new Map<string, number>());
   const itemsRef = useRef<SignatureRow[]>([]);
   const timeoutsRef = useRef<Set<number>>(new Set());
   const wasRevealedRef = useRef(false);
@@ -171,6 +172,7 @@ export function SignatureWall() {
         return;
       }
       seenIdsRef.current.add(row.id);
+      admittedAtRef.current.set(row.id, Date.now());
       const nextItems = [...itemsRef.current, row];
       itemsRef.current = nextItems;
       setItems(nextItems);
@@ -189,22 +191,30 @@ export function SignatureWall() {
 
     function remove(id: string) {
       seenIdsRef.current.delete(id);
+      admittedAtRef.current.delete(id);
       const nextItems = itemsRef.current.filter((item) => item.id !== id);
       itemsRef.current = nextItems;
       setItems(nextItems);
+      setPopups((prev) => prev.filter((item) => item.id !== id));
     }
 
     async function pullSnapshot() {
+      const started = Date.now();
       const rows = await listSignatures();
       if (cancelled) {
         return;
       }
-      const merged = mergeSignatureRows(itemsRef.current, rows);
-      for (const row of merged) {
-        seenIdsRef.current.add(row.id);
+      const keep: string[] = [];
+      for (const [id, at] of admittedAtRef.current) {
+        if (at >= started) {
+          keep.push(id);
+        }
       }
-      itemsRef.current = merged;
-      setItems(merged);
+      const next = reconcileSignatureSnapshot(itemsRef.current, rows, keep);
+      seenIdsRef.current = new Set(next.map((row) => row.id));
+      itemsRef.current = next;
+      setItems(next);
+      setPopups((prev) => prev.filter((item) => seenIdsRef.current.has(item.id)));
     }
 
     async function start() {
