@@ -10,38 +10,19 @@ import {
   listSignatures,
   subscribeSignatures,
 } from "@/lib/signatures/client";
+import {
+  WISH_ENTER_MS,
+  mergeAdmitBatch,
+  shouldAnimateEntrance,
+} from "@/lib/signatures/entrance";
+import {
+  BASE_CARD_HEIGHT,
+  BASE_CARD_WIDTH,
+  type Rect,
+  layoutSignatures,
+} from "@/lib/signatures/layout";
 import { reconcileSignatureSnapshot } from "@/lib/signatures/pages";
-import { SIGNATURE_ASPECT, layoutSignatures } from "@/lib/signatures/layout";
 import type { SignatureRow } from "@/lib/supabase/types";
-
-const POPUP_MS = 2400;
-const PAGE_MS = 7000;
-
-type Popup = {
-  id: string;
-  message: string;
-  svg?: string;
-  left: number;
-  top: number;
-  rotate: number;
-  width: number;
-  height: number;
-};
-
-function makePopup(row: SignatureRow, vw: number, vh: number): Popup {
-  const width = Math.min(300, Math.max(168, Math.round(vw * 0.26)));
-  const height = Math.round(width * SIGNATURE_ASPECT);
-  return {
-    id: row.id,
-    message: row.message,
-    svg: row.svg,
-    width,
-    height,
-    left: Math.max(16, (vw - width) / 2),
-    top: Math.max(72, vh * 0.16),
-    rotate: -2,
-  };
-}
 
 function WishVisual({
   message,
@@ -65,8 +46,20 @@ function WishVisual({
   return <WishBanner message="…" className={className} />;
 }
 
+function measureExclusion(el: Element, root: Element): Rect {
+  const a = el.getBoundingClientRect();
+  const b = root.getBoundingClientRect();
+  return {
+    left: a.left - b.left,
+    top: a.top - b.top,
+    width: a.width,
+    height: a.height,
+  };
+}
+
 export function SignatureWall() {
   const mainRef = useRef<HTMLElement>(null);
+  const emblemRef = useRef<HTMLImageElement>(null);
   const viewRef = useRef({ w: 0, h: 0 });
   const [view, setView] = useState(() => {
     if (typeof window === "undefined") {
@@ -75,27 +68,21 @@ export function SignatureWall() {
     return { w: window.innerWidth, h: window.innerHeight };
   });
   const [items, setItems] = useState<SignatureRow[]>([]);
-  const [popups, setPopups] = useState<Popup[]>([]);
+  const [exclusions, setExclusions] = useState<Rect[]>([]);
+  const [entering, setEntering] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [veilKey, setVeilKey] = useState(0);
-  const [page, setPage] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioUnlockedRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const admittedAtRef = useRef(new Map<string, number>());
   const itemsRef = useRef<SignatureRow[]>([]);
   const timeoutsRef = useRef<Set<number>>(new Set());
+  const pendingRef = useRef<SignatureRow[]>([]);
+  const rafRef = useRef(0);
+  const primedRef = useRef(false);
   const wasRevealedRef = useRef(false);
-
-  function later(fn: () => void, ms: number) {
-    const id = window.setTimeout(() => {
-      timeoutsRef.current.delete(id);
-      fn();
-    }, ms);
-    timeoutsRef.current.add(id);
-    return id;
-  }
 
   useEffect(() => {
     const node = mainRef.current;
@@ -112,6 +99,30 @@ export function SignatureWall() {
     });
     observer.observe(node);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const emblem = emblemRef.current;
+    const root = mainRef.current;
+    if (!emblem || !root) {
+      return;
+    }
+    const update = () => {
+      const rect = measureExclusion(emblem, root);
+      if (rect.width < 8 || rect.height < 8) {
+        return;
+      }
+      setExclusions([rect]);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(emblem);
+    observer.observe(root);
+    emblem.addEventListener("load", update);
+    return () => {
+      observer.disconnect();
+      emblem.removeEventListener("load", update);
+    };
   }, []);
 
   useEffect(() => {
@@ -167,35 +178,66 @@ export function SignatureWall() {
     let cancelled = false;
     let unsubscribe = () => {};
 
-    function admit(row: SignatureRow, showPopup: boolean) {
+    function later(fn: () => void, ms: number) {
+      const id = window.setTimeout(() => {
+        timeoutsRef.current.delete(id);
+        fn();
+      }, ms);
+      timeoutsRef.current.add(id);
+      return id;
+    }
+
+    function markEntering(ids: string[]) {
+      if (ids.length === 0) {
+        return;
+      }
+      const animated = ids.filter((_, index) => shouldAnimateEntrance(index));
+      if (animated.length === 0) {
+        return;
+      }
+      setEntering((prev) => [...prev, ...animated]);
+      later(() => {
+        setEntering((prev) => prev.filter((id) => !animated.includes(id)));
+      }, WISH_ENTER_MS);
+    }
+
+    function flushPending() {
+      rafRef.current = 0;
+      if (cancelled) {
+        pendingRef.current = [];
+        return;
+      }
+      const batch = pendingRef.current;
+      pendingRef.current = [];
+      if (batch.length === 0) {
+        return;
+      }
+      const nextItems = mergeAdmitBatch(itemsRef.current, batch);
+      itemsRef.current = nextItems;
+      setItems(nextItems);
+      markEntering(batch.map((row) => row.id));
+    }
+
+    function admit(row: SignatureRow) {
       if (!row?.id || seenIdsRef.current.has(row.id)) {
         return;
       }
       seenIdsRef.current.add(row.id);
       admittedAtRef.current.set(row.id, Date.now());
-      const nextItems = [...itemsRef.current, row];
-      itemsRef.current = nextItems;
-      setItems(nextItems);
-
-      if (!showPopup) {
-        return;
+      pendingRef.current.push(row);
+      if (!rafRef.current) {
+        rafRef.current = window.requestAnimationFrame(flushPending);
       }
-
-      const { w, h } = viewRef.current;
-      const popup = makePopup(row, w, h);
-      setPopups((prev) => [...prev, popup]);
-      later(() => {
-        setPopups((prev) => prev.filter((item) => item.id !== row.id));
-      }, POPUP_MS);
     }
 
     function remove(id: string) {
       seenIdsRef.current.delete(id);
       admittedAtRef.current.delete(id);
+      pendingRef.current = pendingRef.current.filter((row) => row.id !== id);
       const nextItems = itemsRef.current.filter((item) => item.id !== id);
       itemsRef.current = nextItems;
       setItems(nextItems);
-      setPopups((prev) => prev.filter((item) => item.id !== id));
+      setEntering((prev) => prev.filter((item) => item !== id));
     }
 
     async function pullSnapshot() {
@@ -211,17 +253,21 @@ export function SignatureWall() {
         }
       }
       const next = reconcileSignatureSnapshot(itemsRef.current, rows, keep);
+      const fresh = primedRef.current
+        ? next.filter((row) => !seenIdsRef.current.has(row.id)).map((row) => row.id)
+        : [];
+      primedRef.current = true;
       seenIdsRef.current = new Set(next.map((row) => row.id));
       itemsRef.current = next;
       setItems(next);
-      setPopups((prev) => prev.filter((item) => seenIdsRef.current.has(item.id)));
+      markEntering(fresh);
     }
 
     async function start() {
       // Subscribe first, then fetch + merge/dedupe so rows arriving
       // during the initial read are not dropped.
       unsubscribe = subscribeSignatures(
-        (row) => admit(row, true),
+        (row) => admit(row),
         (id) => remove(id),
         {
           onReconnect: () => {
@@ -250,6 +296,11 @@ export function SignatureWall() {
     return () => {
       cancelled = true;
       unsubscribe();
+      if (rafRef.current) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+      pendingRef.current = [];
       for (const timeout of pending) {
         window.clearTimeout(timeout);
       }
@@ -263,30 +314,17 @@ export function SignatureWall() {
         items.map((item) => item.id),
         view.w,
         view.h,
+        exclusions,
       ),
-    [items, view],
+    [items, view, exclusions],
   );
-
-  useEffect(() => {
-    if (layout.pageCount <= 1) {
-      return;
-    }
-    const timer = window.setInterval(() => {
-      setPage((current) => (current + 1) % layout.pageCount);
-    }, PAGE_MS);
-    return () => window.clearInterval(timer);
-  }, [layout.pageCount]);
 
   const boxById = useMemo(
     () => new Map(layout.boxes.map((box) => [box.id, box])),
     [layout.boxes],
   );
-  const popupIds = useMemo(
-    () => new Set(popups.map((popup) => popup.id)),
-    [popups],
-  );
+  const enteringIds = useMemo(() => new Set(entering), [entering]);
   const fullness = Math.min(1, items.length / 80);
-  const livePage = layout.pageCount <= 1 ? 0 : page % layout.pageCount;
 
   return (
     <main
@@ -327,13 +365,11 @@ export function SignatureWall() {
               {event.wallTitle}
             </h1>
           </div>
-          <p className="text-sm tabular-nums text-cream/45">
-            {items.length}
-            {layout.pageCount > 1 ? ` · ${livePage + 1}/${layout.pageCount}` : ""}
-          </p>
+          <p className="text-sm tabular-nums text-cream/45">{items.length}</p>
         </header>
 
         <Emblem
+          ref={emblemRef}
           className="pointer-events-none absolute top-1/2 left-1/2 z-10 w-[min(28vmin,280px)] -translate-x-1/2 -translate-y-1/2"
         />
 
@@ -349,30 +385,25 @@ export function SignatureWall() {
           <div className="absolute inset-0 z-20">
             {items.map((item) => {
               const box = boxById.get(item.id);
-              if (!box || popupIds.has(item.id)) {
+              if (!box) {
                 return null;
               }
-              const onPage = box.page === livePage;
+              const cx = box.left + box.width / 2;
+              const cy = box.top + box.height / 2;
               return (
                 <article
                   key={item.id}
-                  className="wish-tile pointer-events-none"
+                  className={`wish-tile pointer-events-none${enteringIds.has(item.id) ? " wish-enter" : ""}`}
                   style={{
-                    width: box.width,
-                    height: box.height,
-                    opacity: onPage ? 1 : 0,
-                    transform: `translate3d(${box.left}px, ${box.top}px, 0) rotate(${box.rotate}deg)`,
-                    transition: "opacity 0.9s ease",
-                    zIndex: onPage ? 2 : 1,
+                    width: BASE_CARD_WIDTH,
+                    height: BASE_CARD_HEIGHT,
+                    transform: `translate3d(${cx - BASE_CARD_WIDTH / 2}px, ${cy - BASE_CARD_HEIGHT / 2}px, 0) rotate(${box.rotate}deg) scale(${box.scale})`,
+                    zIndex: 2,
                   }}
                 >
                   <div
-                    className={onPage ? "wish-tile-inner" : undefined}
-                    style={
-                      onPage
-                        ? { animationDelay: `${(box.left + box.top) % 4000}ms` }
-                        : undefined
-                    }
+                    className="wish-tile-inner"
+                    style={{ animationDelay: `${(box.left + box.top) % 4000}ms` }}
                   >
                     <WishVisual message={item.message} svg={item.svg} />
                   </div>
@@ -381,22 +412,6 @@ export function SignatureWall() {
             })}
           </div>
         )}
-
-        {popups.map((popup) => (
-          <div
-            key={popup.id}
-            className="pointer-events-none absolute z-30"
-            style={{
-              width: popup.width,
-              height: popup.height,
-              transform: `translate3d(${popup.left}px, ${popup.top}px, 0) rotate(${popup.rotate}deg)`,
-            }}
-          >
-            <div className="signature-popup h-full w-full">
-              <WishVisual message={popup.message} svg={popup.svg} />
-            </div>
-          </div>
-        ))}
       </div>
 
       <div

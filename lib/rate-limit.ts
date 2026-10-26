@@ -2,9 +2,18 @@ type Bucket = number[];
 
 const buckets = new Map<string, Bucket>();
 
-/** ~1 POST / 2s with a burst of 5. Still blocks extreme spam. */
-export const SIGNATURE_POST_BURST = 5;
-export const SIGNATURE_POST_WINDOW_MS = 10_000;
+/** Per guest device (~1 POST / 2s, burst of 5). */
+export const SIGNATURE_CLIENT_BURST = 5;
+export const SIGNATURE_CLIENT_WINDOW_MS = 10_000;
+
+/** Shared venue IP ceiling so ~50 phones can send at once. */
+export const SIGNATURE_IP_BURST = 300;
+export const SIGNATURE_IP_WINDOW_MS = 60_000;
+
+/** @deprecated use SIGNATURE_CLIENT_BURST */
+export const SIGNATURE_POST_BURST = SIGNATURE_CLIENT_BURST;
+/** @deprecated use SIGNATURE_CLIENT_WINDOW_MS */
+export const SIGNATURE_POST_WINDOW_MS = SIGNATURE_CLIENT_WINDOW_MS;
 
 export function resetRateLimit(key?: string) {
   if (key) {
@@ -32,4 +41,15 @@ export function clientIp(request: Request) {
     return forwarded.split(",")[0]?.trim() || "unknown";
   }
   return request.headers.get("x-real-ip") || "unknown";
+}
+
+export function allowSignaturePost(input: { clientId: string | null; ip: string }) {
+  const clientKey = input.clientId ?? `ip-fallback:${input.ip}`;
+  if (!rateLimit(`sig:client:${clientKey}`, SIGNATURE_CLIENT_BURST, SIGNATURE_CLIENT_WINDOW_MS)) {
+    return false;
+  }
+  if (!rateLimit(`sig:ip:${input.ip}`, SIGNATURE_IP_BURST, SIGNATURE_IP_WINDOW_MS)) {
+    return false;
+  }
+  return true;
 }

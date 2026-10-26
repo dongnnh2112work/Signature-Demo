@@ -1,12 +1,8 @@
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE, isAdminTokenValid } from "@/lib/admin";
 import { allowAdminAction, isDemoOpenAdmin } from "@/lib/demo";
-import {
-  SIGNATURE_POST_BURST,
-  SIGNATURE_POST_WINDOW_MS,
-  clientIp,
-  rateLimit,
-} from "@/lib/rate-limit";
+import { parseClientId, CLIENT_ID_HEADER } from "@/lib/client-id";
+import { allowSignaturePost, clientIp } from "@/lib/rate-limit";
 import { MESSAGE_MAX_LENGTH, POST_BODY_MAX } from "@/lib/sanitize";
 import {
   deleteWish,
@@ -56,11 +52,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "payload too large" }, { status: 413 });
   }
   if (
-    !rateLimit(
-      `sig:${clientIp(request)}`,
-      SIGNATURE_POST_BURST,
-      SIGNATURE_POST_WINDOW_MS,
-    )
+    !allowSignaturePost({
+      clientId: parseClientId(request.headers.get(CLIENT_ID_HEADER)),
+      ip: clientIp(request),
+    })
   ) {
     return Response.json({ error: "rate limited" }, { status: 429 });
   }
