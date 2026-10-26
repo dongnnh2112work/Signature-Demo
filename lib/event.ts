@@ -54,6 +54,7 @@ export const event = {
   adminKeyMomentActivate: "Bật Key Moment",
   adminKeyMomentDeactivate: "Về màn lời chúc",
   adminKeyMomentConfirm: "Chiếu Key Visual lên màn LED?",
+  adminKeyMomentOffConfirm: "Xác nhận tắt Key Moment?",
   adminCancel: "Hủy",
   adminConfirm: "Xác nhận",
   adminActionError: "Không thực hiện được thao tác quản trị.",

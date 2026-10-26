@@ -8,6 +8,12 @@ import { WishBanner } from "@/components/WishBanner";
 import { event } from "@/lib/event";
 import { setKeyMoment, subscribeKeyMoment } from "@/lib/key-moment/client";
 import {
+  canSubmitKeyMoment,
+  confirmDialogInitialFocus,
+  keyMomentPrompt,
+  nextKeyMomentState,
+} from "@/lib/key-moment/safety";
+import {
   clearSignatures,
   deleteSignature,
   listSignatures,
@@ -40,7 +46,8 @@ export function AdminDesk() {
   const [busyId, setBusyId] = useState("");
   const [keyMoment, setKeyMomentOn] = useState(false);
   const [keyMomentBusy, setKeyMomentBusy] = useState(false);
-  const [confirm, setConfirm] = useState<"key" | "clear" | null>(null);
+  const [confirm, setConfirm] = useState<"key" | "key-off" | "clear" | null>(null);
+  const keyMomentInflightRef = useRef(false);
   const [canDelete, setCanDelete] = useState(false);
   const [actionError, setActionError] = useState("");
   const ignorePollUntilRef = useRef(0);
@@ -124,8 +131,11 @@ export function AdminDesk() {
     }
   }
 
-  async function toggleKeyMoment() {
-    const next = !keyMoment;
+  async function applyKeyMoment(next: boolean) {
+    if (!canSubmitKeyMoment(keyMomentBusy) || keyMomentInflightRef.current) {
+      return;
+    }
+    keyMomentInflightRef.current = true;
     setKeyMomentBusy(true);
     setActionError("");
     try {
@@ -135,6 +145,7 @@ export function AdminDesk() {
     } catch (err) {
       setActionError(err instanceof Error ? err.message : event.adminActionError);
     } finally {
+      keyMomentInflightRef.current = false;
       setKeyMomentBusy(false);
     }
   }
@@ -270,11 +281,11 @@ export function AdminDesk() {
           <button
             type="button"
             onClick={() => {
-              if (!keyMoment) {
-                setConfirm("key");
+              if (!canSubmitKeyMoment(keyMomentBusy)) {
                 return;
               }
-              void toggleKeyMoment();
+              const prompt = keyMomentPrompt(keyMoment);
+              setConfirm(prompt === "deactivate" ? "key-off" : "key");
             }}
             disabled={keyMomentBusy}
             className="h-11 rounded-full bg-cream px-5 text-sm font-semibold text-[#1a1408] disabled:opacity-40"
@@ -359,10 +370,30 @@ export function AdminDesk() {
         body={event.adminKeyMomentConfirm}
         confirmLabel={event.adminConfirm}
         cancelLabel={event.adminCancel}
+        initialFocus={confirmDialogInitialFocus("activate")}
         onCancel={() => setConfirm(null)}
         onConfirm={() => {
+          if (!canSubmitKeyMoment(keyMomentBusy)) {
+            return;
+          }
           setConfirm(null);
-          void toggleKeyMoment();
+          void applyKeyMoment(nextKeyMomentState("activate"));
+        }}
+      />
+      <ConfirmDialog
+        open={confirm === "key-off"}
+        title={event.adminKeyMomentTitle}
+        body={event.adminKeyMomentOffConfirm}
+        confirmLabel={event.adminConfirm}
+        cancelLabel={event.adminCancel}
+        initialFocus={confirmDialogInitialFocus("deactivate")}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          if (!canSubmitKeyMoment(keyMomentBusy)) {
+            return;
+          }
+          setConfirm(null);
+          void applyKeyMoment(nextKeyMomentState("deactivate"));
         }}
       />
       <ConfirmDialog

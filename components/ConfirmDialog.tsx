@@ -8,6 +8,7 @@ type Props = {
   cancelLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
+  initialFocus?: "cancel" | "confirm";
 };
 
 export function ConfirmDialog({
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   cancelLabel,
   onConfirm,
   onCancel,
+  initialFocus,
 }: Props) {
   if (!open) {
     return null;
@@ -38,6 +40,7 @@ export function ConfirmDialog({
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
+            autoFocus={initialFocus === "cancel"}
             onClick={onCancel}
             className="h-10 rounded-full border border-white/15 px-4 text-sm text-cream/80"
           >
@@ -45,6 +48,7 @@ export function ConfirmDialog({
           </button>
           <button
             type="button"
+            autoFocus={initialFocus === "confirm"}
             onClick={onConfirm}
             className="h-10 rounded-full bg-gold px-4 text-sm font-semibold text-[#1a1408]"
           >

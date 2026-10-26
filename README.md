@@ -63,7 +63,7 @@ Một cờ **server-only** (`DEMO_OPEN_ADMIN`), **không** `NEXT_PUBLIC_`. Mặc
 
 **Tắt / về sự kiện thật:** đặt `ADMIN_PIN` và **không** để `DEMO_OPEN_ADMIN=1`. Request sau đó bắt PIN ngay. Redeploy sau khi thêm env trên Vercel.
 
-**Xoá trong demo (không có service role):** `DELETE /api/signatures` được phép và đi qua anon server client. Có `SUPABASE_SERVICE_ROLE_KEY` thì vẫn bắt cookie. Ngoài demo luôn bắt cookie. Rate limit POST lời chúc: khoảng 1 lần / 2 giây, burst 5. Giới hạn 200 ký tự. `/sign` cho gửi lại ngay, không khoá localStorage.
+**Xoá trong demo (không có service role):** `DELETE /api/signatures` được phép và đi qua anon server client. Có `SUPABASE_SERVICE_ROLE_KEY` thì vẫn bắt cookie. Ngoài demo luôn bắt cookie. Rate limit POST lời chúc: mỗi thiết bị khoảng 1 lần / 2 giây, burst 5 (header `x-client-id` từ localStorage). Trần chung theo IP khoảng 300 / phút để chặn spam, vẫn cho ~50 máy gửi cùng lúc. Giới hạn 200 ký tự. `/sign` cho gửi lại ngay, không khoá localStorage.
 
 Wall nhận Key Moment realtime (Supabase Realtime khi có `NEXT_PUBLIC_SUPABASE_*`; không thì poll local).
 

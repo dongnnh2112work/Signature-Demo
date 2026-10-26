@@ -11,6 +11,7 @@ import {
   preferLocalDataStore,
 } from "@/lib/supabase/client";
 import type { SignatureRow } from "@/lib/supabase/types";
+import { CLIENT_ID_HEADER, getOrCreateClientId } from "@/lib/client-id";
 import { messageFromRow } from "@/lib/wish";
 
 function toPublic(row: {
@@ -31,7 +32,10 @@ function toPublic(row: {
 export async function insertSignature(message: string) {
   const res = await fetch("/api/signatures", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      [CLIENT_ID_HEADER]: getOrCreateClientId(),
+    },
     body: JSON.stringify({ message }),
   });
   if (!res.ok) {
