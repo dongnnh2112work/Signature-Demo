@@ -180,32 +180,34 @@ body {
 }
 
 .km-logo-pulse {
-  animation: km-logo-pulse 1.88s cubic-bezier(0.7, 0, 1, 0.15) both;
+  transform-origin: center center;
+  animation: km-logo-pulse var(--km-fly-ms, 2444ms) cubic-bezier(0.7, 0, 1, 0.15) both;
 }
 
 @keyframes km-logo-pulse {
   0% {
-    transform: translate3d(-50%, -50%, 0) scale(1);
+    transform: scale(1);
   }
   60% {
-    transform: translate3d(-50%, -50%, 0) scale(1.08);
+    transform: scale(1.08);
   }
   100% {
-    transform: translate3d(-50%, -50%, 0) scale(1.24);
+    transform: scale(1.24);
   }
 }
 
 .km-glow-pulse {
-  animation: km-glow-pulse 1.88s cubic-bezier(0.7, 0, 1, 0.15) both;
+  transform-origin: center center;
+  animation: km-glow-pulse var(--km-fly-ms, 2444ms) cubic-bezier(0.7, 0, 1, 0.15) both;
 }
 
 @keyframes km-glow-pulse {
   0% {
-    transform: translate3d(-50%, -50%, 0) scale(0.92);
+    transform: scale(0.92);
     opacity: 0.45;
   }
   100% {
-    transform: translate3d(-50%, -50%, 0) scale(1.5);
+    transform: scale(1.5);
     opacity: 1;
   }
 }

@@ -10,10 +10,12 @@ export type KmEvent =
   | { type: "signal"; active: boolean; reducedMotion: boolean }
   | { type: "advance"; generation: number };
 
+/** Owner-approved 30% slowdown on fly + stagger. Flash timing is unchanged. */
+export const KM_FLY_SLOWDOWN = 1.3;
 /** Per-card fly duration. Ease-in; delay is added on top. */
-export const KM_FLY_DURATION_MS = 1520;
-export const KM_STAGGER_MIN_MS = 120;
-export const KM_STAGGER_MAX_MS = 360;
+export const KM_FLY_DURATION_MS = Math.round(1520 * KM_FLY_SLOWDOWN);
+export const KM_STAGGER_MIN_MS = Math.round(120 * KM_FLY_SLOWDOWN);
+export const KM_STAGGER_MAX_MS = Math.round(360 * KM_FLY_SLOWDOWN);
 /** Wait until the last (most delayed) card has arrived. */
 export const KM_FLY_MS = KM_FLY_DURATION_MS + KM_STAGGER_MAX_MS;
 /** Radial bloom expand + fade. */
@@ -24,6 +26,31 @@ export const KM_FLY_SCALE = 0.08;
 export const KM_TOTAL_MS = KM_FLY_MS + KM_FLASH_MS;
 export const KM_ANIMATED_PROPS = ["transform", "opacity"] as const;
 export const KM_EASE_IN = "cubic-bezier(0.55, 0.06, 0.68, 0.19)";
+
+export type KmBox = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+export type KmPoint = { cx: number; cy: number };
+
+/** Visual center of the logo in root-local coordinates, including any transform. */
+export function logoCenter(logo: KmBox, root: Pick<KmBox, "left" | "top">): KmPoint {
+  return {
+    cx: logo.left - root.left + logo.width / 2,
+    cy: logo.top - root.top + logo.height / 2,
+  };
+}
+
+/** Top-left of a card whose center lands on `center`. */
+export function kmCardFlyTarget(center: KmPoint, cardW: number, cardH: number) {
+  return {
+    x: center.cx - cardW / 2,
+    y: center.cy - cardH / 2,
+  };
+}
 
 export function createKmState(): KmState {
   return { phase: "idle", primed: false, generation: 0 };

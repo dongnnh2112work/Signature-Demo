@@ -5,16 +5,19 @@ import {
   KM_FLASH_MS,
   KM_FLY_DURATION_MS,
   KM_FLY_MS,
+  KM_FLY_SLOWDOWN,
   KM_STAGGER_MAX_MS,
   KM_STAGGER_MIN_MS,
   KM_TOTAL_MS,
   createKmState,
+  kmCardFlyTarget,
   kmFlyDelay,
   kmPhaseDelay,
   kmShouldRestartVideo,
   kmVideoShouldPlay,
   kmVideoVisible,
   kmWallVisible,
+  logoCenter,
   reduceKm,
 } from "./sequence.ts";
 
@@ -44,9 +47,16 @@ describe("Key Moment wall sequence", () => {
     state = reduceKm(state, { type: "advance", generation: state.generation });
     assert.equal(state.phase, "video");
     assert.equal(kmShouldRestartVideo("flash", "video"), false);
-    assert.ok(KM_TOTAL_MS >= 2500 && KM_TOTAL_MS <= 3000);
-    assert.ok(KM_FLY_DURATION_MS >= 1500 && KM_FLY_MS <= 2000);
-    assert.ok(KM_FLASH_MS >= 400 && KM_FLASH_MS <= 900);
+    assert.equal(KM_FLY_SLOWDOWN, 1.3);
+    assert.equal(KM_FLY_DURATION_MS, Math.round(1520 * 1.3));
+    assert.equal(KM_STAGGER_MIN_MS, Math.round(120 * 1.3));
+    assert.equal(KM_STAGGER_MAX_MS, Math.round(360 * 1.3));
+    assert.equal(KM_FLY_MS, KM_FLY_DURATION_MS + KM_STAGGER_MAX_MS);
+    assert.equal(KM_FLASH_MS, 820);
+    assert.equal(KM_TOTAL_MS, KM_FLY_MS + KM_FLASH_MS);
+    assert.ok(KM_FLY_DURATION_MS >= 1900 && KM_FLY_DURATION_MS <= 2100);
+    assert.ok(KM_FLY_MS >= 2400 && KM_FLY_MS <= 2500);
+    assert.ok(KM_TOTAL_MS >= 3200 && KM_TOTAL_MS <= 3400);
   });
 
   it("aborts cleanly mid-sequence and ignores a stale advance", () => {
@@ -104,7 +114,26 @@ describe("Key Moment wall sequence", () => {
     assert.equal(kmFlyDelay(0, 1000), KM_STAGGER_MIN_MS);
     assert.equal(kmFlyDelay(1000, 1000), KM_STAGGER_MAX_MS);
     assert.ok(kmFlyDelay(400, 1000) > KM_STAGGER_MIN_MS);
-    assert.ok(KM_STAGGER_MAX_MS - KM_STAGGER_MIN_MS <= 300);
+    assert.ok(KM_STAGGER_MAX_MS - KM_STAGGER_MIN_MS <= 320);
     assert.deepEqual([...KM_ANIMATED_PROPS], ["transform", "opacity"]);
+  });
+
+  it("aims the fly-in at the measured logo center", () => {
+    const root = { left: 40, top: 10, width: 1024, height: 576 };
+    const logo = { left: 472, top: 218, width: 160, height: 160 };
+    const center = logoCenter(logo, root);
+    assert.equal(center.cx, 512);
+    assert.equal(center.cy, 288);
+
+    const cardW = 188;
+    const cardH = 90.24;
+    const target = kmCardFlyTarget(center, cardW, cardH);
+    assert.equal(target.x + cardW / 2, center.cx);
+    assert.equal(target.y + cardH / 2, center.cy);
+
+    const scaled = { left: logo.left - 8, top: logo.top - 8, width: 176, height: 176 };
+    const scaledCenter = logoCenter(scaled, root);
+    assert.equal(scaledCenter.cx, center.cx);
+    assert.equal(scaledCenter.cy, center.cy);
   });
 });

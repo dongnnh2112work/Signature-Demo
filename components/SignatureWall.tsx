@@ -9,8 +9,10 @@ import { subscribeKeyMoment } from "@/lib/key-moment/client";
 import {
   KM_EASE_IN,
   KM_FLY_DURATION_MS,
+  KM_FLY_MS,
   KM_FLY_SCALE,
   createKmState,
+  kmCardFlyTarget,
   kmFlashVisible,
   kmFlyDelay,
   kmPhaseDelay,
@@ -18,8 +20,10 @@ import {
   kmVideoShouldPlay,
   kmVideoVisible,
   kmWallVisible,
+  logoCenter,
   reduceKm,
   type KmPhase,
+  type KmPoint,
 } from "@/lib/key-moment/sequence";
 import {
   listSignatures,
@@ -88,9 +92,11 @@ export function SignatureWall() {
   const [error, setError] = useState("");
   const [km, setKm] = useState(createKmState);
   const [flyNow, setFlyNow] = useState(false);
+  const [flyCenter, setFlyCenter] = useState<KmPoint | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioUnlockedRef = useRef(false);
   const prevPhaseRef = useRef<KmPhase>("idle");
+  const freezeLayoutRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const admittedAtRef = useRef(new Map<string, number>());
   const itemsRef = useRef<SignatureRow[]>([]);
@@ -123,6 +129,9 @@ export function SignatureWall() {
       return;
     }
     const update = () => {
+      if (freezeLayoutRef.current) {
+        return;
+      }
       const rect = measureExclusion(emblem, root);
       if (rect.width < 8 || rect.height < 8) {
         return;
@@ -158,12 +167,22 @@ export function SignatureWall() {
   );
 
   useEffect(() => {
+    freezeLayoutRef.current = km.phase === "fly" || km.phase === "flash";
     if (km.phase !== "fly") {
       return;
     }
+    const emblem = emblemRef.current;
+    const root = mainRef.current;
+    const center =
+      emblem && root
+        ? logoCenter(emblem.getBoundingClientRect(), root.getBoundingClientRect())
+        : { cx: viewRef.current.w / 2, cy: viewRef.current.h / 2 };
     let inner = 0;
     const outer = window.requestAnimationFrame(() => {
-      inner = window.requestAnimationFrame(() => setFlyNow(true));
+      inner = window.requestAnimationFrame(() => {
+        setFlyCenter(center);
+        setFlyNow(true);
+      });
     });
     return () => {
       window.cancelAnimationFrame(outer);
@@ -374,12 +393,15 @@ export function SignatureWall() {
   const fullness = Math.min(1, items.length / 80);
   const flying = km.phase === "fly";
   const returning = km.phase === "idle" && km.generation > 0;
-  const logoCx = exclusions[0]
+  const fallbackCx = exclusions[0]
     ? exclusions[0].left + exclusions[0].width / 2
     : view.w / 2;
-  const logoCy = exclusions[0]
+  const fallbackCy = exclusions[0]
     ? exclusions[0].top + exclusions[0].height / 2
     : view.h / 2;
+  const logoCx = flyCenter?.cx ?? fallbackCx;
+  const logoCy = flyCenter?.cy ?? fallbackCy;
+  const flyTarget = kmCardFlyTarget({ cx: logoCx, cy: logoCy }, BASE_CARD_WIDTH, BASE_CARD_HEIGHT);
   const maxFlyDist = Math.max(1, Math.hypot(view.w, view.h) / 2);
   const wallClass = kmWallVisible(km.phase)
     ? "wall-scene-show"
@@ -396,7 +418,10 @@ export function SignatureWall() {
     <main
       ref={mainRef}
       data-km-phase={km.phase}
+      data-km-fly-cx={Number(logoCx.toFixed(1))}
+      data-km-fly-cy={Number(logoCy.toFixed(1))}
       className="relative h-dvh w-screen overflow-hidden bg-[#07122c] text-cream"
+      style={{ ["--km-fly-ms"]: `${KM_FLY_MS}ms` } as CSSProperties}
     >
       <div className={`wall-scene absolute inset-0 z-10 ${wallClass}`}>
         <div
@@ -414,12 +439,10 @@ export function SignatureWall() {
           style={{ opacity: 0.4 + fullness * 0.5 }}
         />
         <div
-          className={`pointer-events-none absolute top-1/2 left-1/2 h-[38vmin] w-[38vmin] rounded-full ${flying ? "km-glow-pulse" : "-translate-x-1/2 -translate-y-1/2"}`}
+          className={`pointer-events-none absolute top-1/2 left-1/2 h-[38vmin] w-[38vmin] rounded-full -translate-x-1/2 -translate-y-1/2${flying ? " km-glow-pulse" : ""}`}
           style={{
             background: `radial-gradient(circle, rgba(232,200,114,${0.18 + fullness * 0.28}) 0%, transparent 68%)`,
-            transform: flying
-              ? undefined
-              : `translate(-50%, -50%) scale(${0.92 + fullness * 0.12})`,
+            transform: flying ? undefined : `scale(${0.92 + fullness * 0.12})`,
           }}
         />
 
@@ -435,10 +458,15 @@ export function SignatureWall() {
           <p className="text-sm tabular-nums text-cream/45">{items.length}</p>
         </header>
 
-        <Emblem
-          ref={emblemRef}
-          className={`pointer-events-none absolute top-1/2 left-1/2 z-10 w-[min(28vmin,280px)] -translate-x-1/2 -translate-y-1/2${flying ? " km-logo-pulse" : ""}`}
-        />
+        <div
+          data-km-logo
+          className="pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
+        >
+          <Emblem
+            ref={emblemRef}
+            className={`w-[min(28vmin,280px)]${flying ? " km-logo-pulse" : ""}`}
+          />
+        </div>
 
         {error ? (
           <p className="relative z-20 flex h-full items-center justify-center px-8 text-center text-cream/70">
@@ -460,7 +488,7 @@ export function SignatureWall() {
               const restX = cx - BASE_CARD_WIDTH / 2;
               const restY = cy - BASE_CARD_HEIGHT / 2;
               const delay = kmFlyDelay(Math.hypot(cx - logoCx, cy - logoCy), maxFlyDist);
-              const flyTo = `translate3d(${logoCx - BASE_CARD_WIDTH / 2}px, ${logoCy - BASE_CARD_HEIGHT / 2}px, 0) rotate(${box.rotate}deg) scale(${KM_FLY_SCALE})`;
+              const flyTo = `translate3d(${flyTarget.x}px, ${flyTarget.y}px, 0) rotate(${box.rotate}deg) scale(${KM_FLY_SCALE})`;
               const rest = `translate3d(${restX}px, ${restY}px, 0) rotate(${box.rotate}deg) scale(${box.scale})`;
               const motionClass = flying
                 ? " wish-tile-fly"
