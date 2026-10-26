@@ -9,15 +9,8 @@ export function hasSupabaseConfig() {
   );
 }
 
-export function useLocalDataStore() {
-  if (!hasSupabaseConfig()) {
-    return true;
-  }
-  if (typeof window === "undefined") {
-    return false;
-  }
-  const host = window.location.hostname;
-  return host === "localhost" || host === "127.0.0.1";
+export function preferLocalDataStore() {
+  return !hasSupabaseConfig();
 }
 
 export function getSupabaseBrowserClient() {

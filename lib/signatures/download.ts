@@ -1,3 +1,6 @@
+import { messageToSvg, splitWish } from "@/lib/wish";
+import { escapeXml } from "@/lib/sanitize";
+
 function crc32(data: Uint8Array) {
   let crc = 0xffffffff;
   for (let i = 0; i < data.length; i += 1) {
@@ -99,6 +102,24 @@ function zipStore(files: { name: string; data: Uint8Array }[]) {
   });
 }
 
+export function wishBannerSvg(message: string) {
+  const { title, subtitle } = splitWish(message);
+  const t = escapeXml(title);
+  const s = escapeXml(subtitle);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300">
+  <defs>
+    <linearGradient id="r" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d5263f"/>
+      <stop offset="1" stop-color="#8e1428"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="300" fill="#0b1b3f"/>
+  <path d="M36 70h568c14 0 24 12 24 26v108c0 14-10 26-24 26H36c-14 0-24-12-24-26V96c0-14 10-26 24-26z" fill="url(#r)" stroke="#e8c872" stroke-width="4"/>
+  <text x="320" y="148" text-anchor="middle" fill="#f8e7b0" font-size="42" font-family="Georgia, serif">${t}</text>
+  <text x="320" y="188" text-anchor="middle" fill="#f4e4b0" font-size="18" letter-spacing="4" font-family="sans-serif">${s}</text>
+</svg>`;
+}
+
 function sizedSvg(svg: string) {
   if (/width\s*=/.test(svg) && /height\s*=/.test(svg)) {
     return svg;
@@ -145,7 +166,7 @@ export async function svgToPngBlob(svg: string, scale = 2) {
   if (!ctx) {
     throw new Error("canvas unavailable");
   }
-  ctx.fillStyle = "#0b0a09";
+  ctx.fillStyle = "#0b1b3f";
   ctx.fillRect(0, 0, width, height);
   ctx.drawImage(image, 0, 0, width, height);
 
@@ -164,22 +185,23 @@ export async function downloadPng(svg: string, filename: string) {
 
 export function signatureFileName(id: string, createdAt: string, ext = "svg") {
   const stamp = createdAt.replace(/[:.]/g, "-").slice(0, 19);
-  return `chu-ky-${stamp}-${id.slice(0, 8)}.${ext}`;
+  return `loi-chuc-${stamp}-${id.slice(0, 8)}.${ext}`;
 }
 
 export async function downloadSignaturesOffline(
-  rows: { id: string; svg: string; created_at: string }[],
+  rows: { id: string; message: string; created_at: string }[],
 ) {
   const encoder = new TextEncoder();
   const files: { name: string; data: Uint8Array }[] = [];
 
   for (const row of rows) {
     const base = signatureFileName(row.id, row.created_at, "svg").replace(/\.svg$/, "");
+    const svg = wishBannerSvg(row.message) || messageToSvg(row.message);
     files.push({
       name: `svg/${base}.svg`,
-      data: encoder.encode(row.svg),
+      data: encoder.encode(svg),
     });
-    const png = await svgToPngBlob(row.svg);
+    const png = await svgToPngBlob(svg);
     files.push({
       name: `png/${base}.png`,
       data: new Uint8Array(await png.arrayBuffer()),
@@ -190,20 +212,20 @@ export async function downloadSignaturesOffline(
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <title>Chữ ký Key Moment 2026–2027</title>
+  <title>Lời chúc Key Moment</title>
   <style>
-    body { margin: 0; background: #0b0a09; color: #faf4e6; font-family: sans-serif; }
+    body { margin: 0; background: #0b1b3f; color: #faf4e6; font-family: sans-serif; }
     h1 { text-align: center; font-weight: 600; padding: 32px 16px 8px; }
     p { text-align: center; opacity: .6; margin: 0 0 24px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding: 16px 24px 48px; }
-    figure { margin: 0; background: #16130e; border-radius: 12px; padding: 12px; }
+    figure { margin: 0; background: #132a56; border-radius: 12px; padding: 12px; }
     img { width: 100%; height: 120px; object-fit: contain; }
     figcaption { font-size: 12px; opacity: .55; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <h1>Cam kết 2026–2027</h1>
-  <p>${rows.length} chữ ký — PNG + SVG, mở file này khi không có mạng</p>
+  <h1>Gửi lời chúc — Góp sắc tương lai</h1>
+  <p>${rows.length} lời chúc — PNG + SVG, mở file này khi không có mạng</p>
   <div class="grid">
     ${rows
       .map((row, index) => {
@@ -211,7 +233,7 @@ export async function downloadSignaturesOffline(
           /\.svg$/,
           "",
         );
-        return `<figure><img src="png/${base}.png" alt="Chữ ký ${index + 1}" /><figcaption>#${index + 1} · ${row.created_at}</figcaption></figure>`;
+        return `<figure><img src="png/${base}.png" alt="Lời chúc ${index + 1}" /><figcaption>#${index + 1} · ${row.created_at}</figcaption></figure>`;
       })
       .join("\n")}
   </div>
@@ -219,5 +241,5 @@ export async function downloadSignaturesOffline(
 </html>`;
 
   files.push({ name: "index.html", data: encoder.encode(html) });
-  downloadBlob(zipStore(files), "chu-ky-key-moment-offline.zip");
+  downloadBlob(zipStore(files), "loi-chuc-key-moment-offline.zip");
 }

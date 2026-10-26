@@ -1,20 +1,29 @@
 import { cookies } from "next/headers";
-import { ADMIN_COOKIE } from "@/lib/admin";
-import { getLocalKeyMoment, setLocalKeyMoment } from "@/lib/key-moment/store";
+import { ADMIN_COOKIE, isAdminTokenValid } from "@/lib/admin";
+import { allowAdminAction } from "@/lib/demo";
+import { readKeyMoment, writeKeyMoment } from "@/lib/key-moment/server";
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
-  return Response.json({ active: getLocalKeyMoment() });
+export async function GET() {
+  try {
+    return Response.json({ active: await readKeyMoment() });
+  } catch {
+    return Response.json({ active: false }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
   const jar = await cookies();
-  if (jar.get(ADMIN_COOKIE)?.value !== "1") {
+  const tokenValid = isAdminTokenValid(jar.get(ADMIN_COOKIE)?.value);
+  if (!allowAdminAction("key-moment", { tokenValid })) {
     return Response.json({ ok: false }, { status: 401 });
   }
 
   const body = (await request.json()) as { active?: unknown };
-  const active = setLocalKeyMoment(Boolean(body.active));
-  return Response.json({ active });
+  const result = await writeKeyMoment(Boolean(body.active));
+  if ("error" in result) {
+    return Response.json({ ok: false, error: result.error }, { status: result.status });
+  }
+  return Response.json({ active: result.active });
 }

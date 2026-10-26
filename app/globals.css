@@ -1,55 +1,135 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0a09;
+  --background: #0b1b3f;
   --foreground: #faf4e6;
+  --navy: #0b1b3f;
+  --navy-deep: #07122c;
+  --gold: #e8c872;
+  --gold-soft: #f4e4b0;
+  --crimson: #c41e3a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-ink: #0b0a09;
+  --color-ink: #0b1b3f;
   --color-cream: #faf4e6;
-  --color-gold: #d4b06a;
+  --color-gold: #e8c872;
   --font-sans: var(--font-be-vietnam);
+  --font-display: var(--font-display);
 }
 
 html,
 body {
-  background: var(--background);
+  background: var(--navy-deep);
   color: var(--foreground);
 }
 
-.signature-svg svg {
-  display: block;
-  width: 100%;
+.font-display {
+  font-family: var(--font-display), "Times New Roman", serif;
+}
+
+.festive-bg {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(232, 200, 114, 0.18), transparent 42%),
+    radial-gradient(ellipse at 80% 100%, rgba(196, 30, 58, 0.22), transparent 40%),
+    radial-gradient(ellipse at 10% 80%, rgba(42, 109, 181, 0.28), transparent 36%),
+    linear-gradient(180deg, #10244f 0%, #0b1b3f 48%, #07122c 100%);
+}
+
+.festive-frame {
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 200, 114, 0.28),
+    0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+.wish-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 100%;
+  width: 100%;
+  padding: 6% 12%;
+  overflow: hidden;
+  color: #f8e7b0;
+  background: linear-gradient(180deg, #d5263f 0%, #9b1528 100%);
+  border: 2px solid #e8c872;
+  border-radius: 4px 18px 4px 18px;
+  box-shadow: 0 6px 0 rgba(80, 10, 18, 0.35);
+  container-type: size;
 }
 
-.signature-tile {
-  transition:
-    left 0.55s ease,
-    top 0.55s ease,
-    width 0.55s ease,
-    height 0.55s ease;
+.wish-banner-copy {
+  min-width: 0;
+  max-width: 100%;
+  text-align: center;
 }
 
-@keyframes signature-popup {
-  0% {
-    opacity: 0;
-    transform: scale(0.55);
-  }
-  16% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
-  72% {
-    opacity: 1;
-    transform: scale(1);
-  }
+.wish-title {
+  font-family: var(--font-display), "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  font-size: clamp(0.7rem, 38cqh, 1.7rem);
+  text-shadow: 0 1px 0 rgba(80, 10, 18, 0.45);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.wish-sub {
+  margin-top: 0.12em;
+  font-size: clamp(0.4rem, 16cqh, 0.75rem);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f4e4b0;
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wish-ornament {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  background: url("/wish-ornament.svg") center / contain no-repeat;
+  transform: translateY(-50%);
+}
+
+.wish-ornament-l {
+  left: 6px;
+}
+
+.wish-ornament-r {
+  right: 6px;
+}
+
+.wish-tile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+}
+
+.wish-tile-inner {
+  height: 100%;
+  animation: wish-float 7s ease-in-out infinite;
+}
+
+@keyframes wish-float {
+  0%,
   100% {
-    opacity: 0;
-    transform: scale(0.9);
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -5px, 0);
   }
 }
 
@@ -57,34 +137,52 @@ body {
   animation: signature-popup 2.4s ease-out both;
 }
 
+@keyframes signature-popup {
+  0% {
+    opacity: 0;
+    transform: scale(0.62);
+  }
+  16% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  72% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
 .wall-scene {
   transition:
-    opacity 1.7s cubic-bezier(0.45, 0, 0.15, 1),
-    transform 1.9s cubic-bezier(0.22, 1, 0.36, 1),
-    filter 1.6s ease;
+    opacity 1.5s cubic-bezier(0.45, 0, 0.15, 1),
+    transform 1.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .wall-scene-show {
   opacity: 1;
   transform: scale(1);
-  filter: blur(0);
 }
 
 .wall-scene-leave {
   opacity: 0;
-  transform: scale(1.045);
-  filter: blur(14px);
+  transform: scale(1.04);
 }
 
 .wall-scene-wait {
   opacity: 0;
-  transform: scale(1.06);
-  filter: blur(18px);
+  transform: scale(1.05);
 }
 
 .wall-unveil {
-  background:
-    radial-gradient(circle at 50% 45%, rgba(212, 176, 106, 0.55), transparent 58%);
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgba(232, 200, 114, 0.55),
+    transparent 58%
+  );
   opacity: 0;
   pointer-events: none;
 }
@@ -103,4 +201,29 @@ body {
   100% {
     opacity: 0;
   }
+}
+
+.wall-star {
+  transform: translate3d(-50%, -50%, 0);
+  filter: none;
+}
+
+.lantern-sway {
+  animation: lantern-sway 5.5s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+@keyframes lantern-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+
+.send-icon {
+  width: 1.05em;
+  height: 1.05em;
 }

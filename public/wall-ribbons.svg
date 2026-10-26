@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <path d="M-80 820 C 240 760, 420 980, 760 860 S 1280 640, 1680 760 S 2100 980, 2100 980" fill="none" stroke="#c41e3a" stroke-width="54" stroke-linecap="round" opacity="0.88"/>
+  <path d="M-80 820 C 240 760, 420 980, 760 860 S 1280 640, 1680 760 S 2100 980, 2100 980" fill="none" stroke="#e8c872" stroke-width="10" opacity="0.55"/>
+  <path d="M-40 250 C 300 180, 520 360, 860 240 S 1380 80, 1760 220 S 2100 360, 2100 360" fill="none" stroke="#1e5aa8" stroke-width="48" stroke-linecap="round" opacity="0.75"/>
+  <path d="M-60 540 C 280 480, 560 640, 920 520 S 1420 360, 1880 500" fill="none" stroke="#d4b06a" stroke-width="28" stroke-linecap="round" opacity="0.7"/>
+  <path d="M200 1080 C 480 900, 620 1040, 980 900 S 1500 720, 1920 860" fill="none" stroke="#9b1b2f" stroke-width="40" stroke-linecap="round" opacity="0.8"/>
+  <path d="M0 140 C 400 80, 700 200, 1100 90 S 1600 40, 1920 120" fill="none" stroke="#f0d48a" stroke-width="14" opacity="0.45"/>
+  <path d="M1600 -20 C 1500 180, 1720 300, 1580 520 S 1760 780, 1640 1100" fill="none" stroke="#2a6db5" stroke-width="36" stroke-linecap="round" opacity="0.55"/>
+  <path d="M220 -20 C 320 200, 80 340, 260 560 S 40 820, 200 1100" fill="none" stroke="#c41e3a" stroke-width="30" stroke-linecap="round" opacity="0.5"/>
+</svg>
