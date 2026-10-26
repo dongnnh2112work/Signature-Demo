@@ -2,24 +2,36 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   KM_ANIMATED_PROPS,
+  KM_FLASH_HOLD_MAX_MS,
   KM_FLASH_MS,
+  KM_FLASH_PLAY_AT_MS,
   KM_FLY_DURATION_MS,
   KM_FLY_MS,
+  KM_HAVE_ENOUGH_DATA,
   KM_FLY_SLOWDOWN,
   KM_STAGGER_MAX_MS,
   KM_STAGGER_MIN_MS,
   KM_TOTAL_MS,
   createKmState,
   kmCardFlyTarget,
+  kmFlashAdvanceAtMs,
   kmFlyDelay,
   kmLogoVisible,
   kmPhaseDelay,
+  kmRevealCurrentTimeSec,
   kmShouldRestartVideo,
+  kmShouldSeekToStart,
+  kmVideoAction,
+  kmVideoReadyToReveal,
   kmVideoShouldPlay,
+  kmVideoShouldPreload,
   kmVideoVisible,
   kmWallVisible,
   logoCenter,
+  playKmVideo,
+  preloadKmVideo,
   reduceKm,
+  type KmVideoNode,
 } from "./sequence.ts";
 
 describe("Key Moment wall sequence", () => {
@@ -35,15 +47,21 @@ describe("Key Moment wall sequence", () => {
     state = reduceKm(state, { type: "signal", active: true, reducedMotion: false });
     assert.equal(state.phase, "fly");
     assert.equal(kmPhaseDelay("fly"), KM_FLY_MS);
-    assert.equal(kmVideoShouldPlay("fly"), true);
+    assert.equal(kmVideoAction("fly"), "preload");
+    assert.equal(kmVideoShouldPreload("fly"), true);
+    assert.equal(kmVideoShouldPlay("fly"), false);
     assert.equal(kmVideoVisible("fly"), false);
     assert.equal(kmWallVisible("fly"), true);
     assert.equal(kmShouldRestartVideo("idle", "fly"), true);
+    assert.equal(kmShouldSeekToStart("idle", "fly"), true);
 
     state = reduceKm(state, { type: "advance", generation: state.generation });
     assert.equal(state.phase, "flash");
+    assert.equal(kmVideoAction("flash"), "play");
+    assert.equal(kmVideoShouldPlay("flash"), true);
     assert.equal(kmVideoVisible("flash"), true);
     assert.equal(kmWallVisible("flash"), false);
+    assert.equal(kmShouldSeekToStart("fly", "flash"), true);
 
     state = reduceKm(state, { type: "advance", generation: state.generation });
     assert.equal(state.phase, "video");
@@ -150,5 +168,46 @@ describe("Key Moment wall sequence", () => {
       kmLogoVisible({ width: 161, height: 161, opacity: 1, display: "block", visibility: "hidden" }),
       false,
     );
+  });
+
+  it("starts the video at the flash so currentTime at reveal is the opening", async () => {
+    assert.equal(kmVideoShouldPlay("fly"), false);
+    assert.equal(kmVideoShouldPreload("fly"), true);
+    assert.equal(kmVideoShouldPlay("flash"), true);
+    assert.ok(KM_FLASH_PLAY_AT_MS >= KM_FLASH_MS - 500);
+    assert.ok(kmRevealCurrentTimeSec(KM_FLASH_PLAY_AT_MS, KM_FLASH_MS) < 0.5);
+    assert.ok(kmRevealCurrentTimeSec(0, KM_FLY_MS + 280) > 2);
+
+    assert.equal(kmFlashAdvanceAtMs(200), KM_FLASH_MS);
+    assert.equal(kmFlashAdvanceAtMs(null), KM_FLASH_MS + KM_FLASH_HOLD_MAX_MS);
+    assert.equal(kmFlashAdvanceAtMs(KM_FLASH_MS + 180), KM_FLASH_MS + 180);
+    assert.equal(kmFlashAdvanceAtMs(KM_FLASH_MS + 800), KM_FLASH_MS + KM_FLASH_HOLD_MAX_MS);
+    assert.equal(kmVideoReadyToReveal(KM_HAVE_ENOUGH_DATA), true);
+    assert.equal(kmVideoReadyToReveal(1), false);
+
+    function fakeVideo(readyState = KM_HAVE_ENOUGH_DATA): KmVideoNode {
+      return {
+        currentTime: 12,
+        muted: false,
+        paused: true,
+        readyState,
+        pause() {
+          this.paused = true;
+        },
+        async play() {
+          this.paused = false;
+        },
+      };
+    }
+
+    const preloaded = fakeVideo();
+    assert.equal(await preloadKmVideo(preloaded, true), "primed");
+    assert.equal(preloaded.paused, true);
+    assert.equal(preloaded.currentTime, 0);
+
+    const playing = fakeVideo();
+    assert.equal(await playKmVideo(playing, true), "ok");
+    assert.equal(playing.paused, false);
+    assert.equal(playing.currentTime, 0);
   });
 });

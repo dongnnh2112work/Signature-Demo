@@ -20,6 +20,17 @@ export const KM_STAGGER_MAX_MS = Math.round(360 * KM_FLY_SLOWDOWN);
 export const KM_FLY_MS = KM_FLY_DURATION_MS + KM_STAGGER_MAX_MS;
 /** Radial bloom expand + fade. */
 export const KM_FLASH_MS = 820;
+/** Extra cover if the first decoded frame is late. */
+export const KM_FLASH_HOLD_MAX_MS = 500;
+/** Peak of the approved 820ms bloom (34% keyframe). */
+export const KM_FLASH_PEAK_MS = Math.round(KM_FLASH_MS * 0.34);
+/**
+ * Start playback after the bloom is covering, late enough that
+ * currentTime at the 820ms fade stays under 0.5s even with a
+ * couple of frames of sampling lag.
+ */
+export const KM_FLASH_PLAY_AT_MS = Math.max(KM_FLASH_PEAK_MS, KM_FLASH_MS - 300);
+export const KM_HAVE_ENOUGH_DATA = 4;
 export const KM_CROSSFADE_MS = 720;
 export const KM_RETURN_MS = 700;
 export const KM_FLY_SCALE = 0.08;
@@ -130,8 +141,46 @@ export function kmPhaseDelay(phase: KmPhase): number | null {
   return null;
 }
 
+export type KmVideoAction = "pause" | "preload" | "play";
+
+/** Fly preloads a paused frame-0; playback starts at flash (or video/crossfade). */
+export function kmVideoAction(phase: KmPhase): KmVideoAction {
+  if (phase === "fly") {
+    return "preload";
+  }
+  if (phase === "flash" || phase === "video" || phase === "crossfade") {
+    return "play";
+  }
+  return "pause";
+}
+
 export function kmVideoShouldPlay(phase: KmPhase) {
-  return phase === "fly" || phase === "flash" || phase === "video" || phase === "crossfade";
+  return kmVideoAction(phase) === "play";
+}
+
+export function kmVideoShouldPreload(phase: KmPhase) {
+  return kmVideoAction(phase) === "preload";
+}
+
+export function kmVideoReadyToReveal(readyState: number) {
+  return readyState >= KM_HAVE_ENOUGH_DATA;
+}
+
+/**
+ * When to advance out of flash. Never shorter than the approved bloom;
+ * if the first frame is late, wait up to KM_FLASH_HOLD_MAX_MS extra.
+ */
+export function kmFlashAdvanceAtMs(firstFrameAtMs: number | null) {
+  const cap = KM_FLASH_MS + KM_FLASH_HOLD_MAX_MS;
+  if (firstFrameAtMs == null) {
+    return cap;
+  }
+  return Math.min(cap, Math.max(KM_FLASH_MS, firstFrameAtMs));
+}
+
+/** currentTime at flash fade if playback began at `playAtMs` into the flash. */
+export function kmRevealCurrentTimeSec(playAtMs: number, fadeAtMs: number) {
+  return Math.max(0, fadeAtMs - playAtMs) / 1000;
 }
 
 export function kmVideoVisible(phase: KmPhase) {
@@ -148,6 +197,57 @@ export function kmFlashVisible(phase: KmPhase) {
 
 export function kmShouldRestartVideo(from: KmPhase, to: KmPhase) {
   return from === "idle" && (to === "fly" || to === "crossfade" || to === "video");
+}
+
+export function kmShouldSeekToStart(from: KmPhase, to: KmPhase) {
+  return (
+    kmShouldRestartVideo(from, to) || (from === "fly" && to === "flash")
+  );
+}
+
+export type KmVideoNode = {
+  pause: () => void;
+  play: () => Promise<void>;
+  currentTime: number;
+  muted: boolean;
+  paused: boolean;
+  readyState: number;
+};
+
+export async function playKmVideo(
+  video: KmVideoNode,
+  muted: boolean,
+  fromStart = true,
+) {
+  video.muted = muted;
+  if (fromStart) {
+    video.currentTime = 0;
+  }
+  try {
+    await video.play();
+    return "ok" as const;
+  } catch {
+    video.muted = true;
+    try {
+      await video.play();
+      return "muted" as const;
+    } catch {
+      return "blocked" as const;
+    }
+  }
+}
+
+export async function preloadKmVideo(video: KmVideoNode, muted: boolean) {
+  video.muted = muted;
+  video.pause();
+  video.currentTime = 0;
+  if (!kmVideoReadyToReveal(video.readyState)) {
+    return "loading" as const;
+  }
+  const result = await playKmVideo(video, muted, true);
+  video.pause();
+  video.currentTime = 0;
+  return result === "blocked" ? "blocked" : ("primed" as const);
 }
 
 export function kmFlyDelay(distance: number, maxDistance: number) {
