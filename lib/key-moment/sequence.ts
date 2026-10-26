@@ -52,6 +52,25 @@ export function kmCardFlyTarget(center: KmPoint, cardW: number, cardH: number) {
   };
 }
 
+export type KmLogoStyle = {
+  width: number;
+  height: number;
+  opacity: number;
+  display: string;
+  visibility?: string;
+};
+
+/** True when the emblem itself is painted (not collapsed, hidden, or faded). */
+export function kmLogoVisible(style: KmLogoStyle) {
+  return (
+    style.width >= 8 &&
+    style.height >= 8 &&
+    style.opacity > 0 &&
+    style.display !== "none" &&
+    style.visibility !== "hidden"
+  );
+}
+
 export function createKmState(): KmState {
   return { phase: "idle", primed: false, generation: 0 };
 }

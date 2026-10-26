@@ -438,14 +438,6 @@ export function SignatureWall() {
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
           style={{ opacity: 0.4 + fullness * 0.5 }}
         />
-        <div
-          className={`pointer-events-none absolute top-1/2 left-1/2 h-[38vmin] w-[38vmin] rounded-full -translate-x-1/2 -translate-y-1/2${flying ? " km-glow-pulse" : ""}`}
-          style={{
-            background: `radial-gradient(circle, rgba(232,200,114,${0.18 + fullness * 0.28}) 0%, transparent 68%)`,
-            transform: flying ? undefined : `scale(${0.92 + fullness * 0.12})`,
-          }}
-        />
-
         <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-6 py-4">
           <div>
             <p className="text-[11px] font-medium tracking-[0.32em] text-gold uppercase">
@@ -457,16 +449,6 @@ export function SignatureWall() {
           </div>
           <p className="text-sm tabular-nums text-cream/45">{items.length}</p>
         </header>
-
-        <div
-          data-km-logo
-          className="pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
-        >
-          <Emblem
-            ref={emblemRef}
-            className={`w-[min(28vmin,280px)]${flying ? " km-logo-pulse" : ""}`}
-          />
-        </div>
 
         {error ? (
           <p className="relative z-20 flex h-full items-center justify-center px-8 text-center text-cream/70">
@@ -523,6 +505,23 @@ export function SignatureWall() {
             })}
           </div>
         )}
+
+        <div
+          className={`pointer-events-none absolute top-1/2 left-1/2 z-[25] h-[38vmin] w-[38vmin] rounded-full -translate-x-1/2 -translate-y-1/2${flying ? " km-glow-pulse" : ""}`}
+          style={{
+            background: `radial-gradient(circle, rgba(232,200,114,${0.18 + fullness * 0.28}) 0%, transparent 68%)`,
+            transform: flying ? undefined : `scale(${0.92 + fullness * 0.12})`,
+          }}
+        />
+        <div
+          data-km-logo
+          className="pointer-events-none absolute top-1/2 left-1/2 z-30 aspect-square w-[min(28vmin,280px)] -translate-x-1/2 -translate-y-1/2"
+        >
+          <Emblem
+            ref={emblemRef}
+            className={`block h-full w-full max-w-none${flying ? " km-logo-pulse" : ""}`}
+          />
+        </div>
       </div>
 
       <div className={`wall-scene absolute inset-0 z-20 ${videoClass}`}>

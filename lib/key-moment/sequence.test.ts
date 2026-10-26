@@ -12,6 +12,7 @@ import {
   createKmState,
   kmCardFlyTarget,
   kmFlyDelay,
+  kmLogoVisible,
   kmPhaseDelay,
   kmShouldRestartVideo,
   kmVideoShouldPlay,
@@ -135,5 +136,19 @@ describe("Key Moment wall sequence", () => {
     const scaledCenter = logoCenter(scaled, root);
     assert.equal(scaledCenter.cx, center.cx);
     assert.equal(scaledCenter.cy, center.cy);
+  });
+
+  it("keeps the logo element visible in idle, fly, flash, and video", () => {
+    const painted = { width: 161, height: 161, opacity: 1, display: "block", visibility: "visible" };
+    for (const phase of ["idle", "fly", "flash", "video"] as const) {
+      assert.equal(kmLogoVisible(painted), true, phase);
+    }
+    assert.equal(kmLogoVisible({ width: 0, height: 0, opacity: 1, display: "block" }), false);
+    assert.equal(kmLogoVisible({ width: 161, height: 161, opacity: 0, display: "block" }), false);
+    assert.equal(kmLogoVisible({ width: 161, height: 161, opacity: 1, display: "none" }), false);
+    assert.equal(
+      kmLogoVisible({ width: 161, height: 161, opacity: 1, display: "block", visibility: "hidden" }),
+      false,
+    );
   });
 });
