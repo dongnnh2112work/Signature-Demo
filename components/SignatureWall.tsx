@@ -8,19 +8,24 @@ import { event } from "@/lib/event";
 import { subscribeKeyMoment } from "@/lib/key-moment/client";
 import {
   KM_EASE_IN,
+  KM_FLASH_HOLD_MAX_MS,
+  KM_FLASH_MS,
+  KM_FLASH_PLAY_AT_MS,
   KM_FLY_DURATION_MS,
   KM_FLY_MS,
   KM_FLY_SCALE,
   createKmState,
   kmCardFlyTarget,
+  kmFlashAdvanceAtMs,
   kmFlashVisible,
   kmFlyDelay,
   kmPhaseDelay,
-  kmShouldRestartVideo,
-  kmVideoShouldPlay,
+  kmVideoAction,
+  kmVideoReadyToReveal,
   kmVideoVisible,
   kmWallVisible,
   logoCenter,
+  playKmVideo,
   reduceKm,
   type KmPhase,
   type KmPoint,
@@ -93,6 +98,7 @@ export function SignatureWall() {
   const [km, setKm] = useState(createKmState);
   const [flyNow, setFlyNow] = useState(false);
   const [flyCenter, setFlyCenter] = useState<KmPoint | null>(null);
+  const [flashHold, setFlashHold] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioUnlockedRef = useRef(false);
   const prevPhaseRef = useRef<KmPhase>("idle");
@@ -192,6 +198,9 @@ export function SignatureWall() {
   }, [km.phase]);
 
   useEffect(() => {
+    if (km.phase === "flash") {
+      return;
+    }
     const delay = kmPhaseDelay(km.phase);
     if (delay == null) {
       return;
@@ -223,22 +232,117 @@ export function SignatureWall() {
     const from = prevPhaseRef.current;
     const to = km.phase;
     prevPhaseRef.current = to;
+    const muted = !audioUnlockedRef.current;
+    const action = kmVideoAction(to);
 
-    if (!kmVideoShouldPlay(to)) {
+    if (action === "pause") {
       video.pause();
       return;
     }
 
-    if (kmShouldRestartVideo(from, to)) {
+    if (action === "preload") {
+      let cancelled = false;
+      const onReady = () => {
+        if (!cancelled) {
+          void prime();
+        }
+      };
+      const prime = async () => {
+        if (cancelled) {
+          return;
+        }
+        await playKmVideo(video, muted, true);
+        if (cancelled) {
+          return;
+        }
+        video.pause();
+        video.currentTime = 0;
+      };
+      video.pause();
       video.currentTime = 0;
+      if (kmVideoReadyToReveal(video.readyState)) {
+        void prime();
+      } else {
+        video.addEventListener("canplaythrough", onReady, { once: true });
+      }
+      return () => {
+        cancelled = true;
+        video.removeEventListener("canplaythrough", onReady);
+        video.pause();
+      };
     }
 
-    video.muted = !audioUnlockedRef.current;
-    void video.play().catch(() => {
-      video.muted = true;
-      void video.play().catch(() => {});
-    });
+    if (to === "flash") {
+      video.pause();
+      video.currentTime = 0;
+      return;
+    }
+
+    void playKmVideo(video, muted, from !== "flash" && from !== "crossfade");
   }, [km.phase]);
+
+  useEffect(() => {
+    if (km.phase !== "flash") {
+      return;
+    }
+    const video = videoRef.current;
+    const generation = km.generation;
+    const started = performance.now();
+    let firstFrameAt: number | null = null;
+    let advanced = false;
+    let playTimer = 0;
+    let pollTimer = 0;
+    let capTimer = 0;
+
+    const advance = () => {
+      if (advanced) {
+        return;
+      }
+      advanced = true;
+      setFlashHold(false);
+      setKm((state) => reduceKm(state, { type: "advance", generation }));
+    };
+
+    const maybeAdvance = () => {
+      const elapsed = performance.now() - started;
+      if (firstFrameAt == null && elapsed >= KM_FLASH_MS) {
+        setFlashHold(true);
+      }
+      if (elapsed >= kmFlashAdvanceAtMs(firstFrameAt)) {
+        advance();
+      }
+    };
+
+    const markFrame = () => {
+      if (firstFrameAt == null) {
+        firstFrameAt = performance.now() - started;
+      }
+      maybeAdvance();
+    };
+
+    const startPlayback = () => {
+      if (!video) {
+        return;
+      }
+      void playKmVideo(video, !audioUnlockedRef.current, true);
+      if (typeof video.requestVideoFrameCallback === "function") {
+        video.requestVideoFrameCallback(() => markFrame());
+      }
+      video.addEventListener("playing", markFrame, { once: true });
+    };
+
+    playTimer = window.setTimeout(startPlayback, KM_FLASH_PLAY_AT_MS);
+    pollTimer = window.setInterval(maybeAdvance, 50);
+    capTimer = window.setTimeout(advance, KM_FLASH_MS + KM_FLASH_HOLD_MAX_MS);
+
+    return () => {
+      window.clearTimeout(playTimer);
+      window.clearInterval(pollTimer);
+      window.clearTimeout(capTimer);
+      video?.removeEventListener("playing", markFrame);
+      setFlashHold(false);
+    };
+  }, [km.phase, km.generation]);
 
   useEffect(() => {
     let cancelled = false;
@@ -530,6 +634,7 @@ export function SignatureWall() {
           className="h-full w-full object-cover"
           src={event.keyVisualSrc}
           playsInline
+          muted
           preload="auto"
         />
       </div>
@@ -538,6 +643,7 @@ export function SignatureWall() {
         <div
           className="km-flash"
           aria-hidden
+          data-hold={flashHold ? "true" : undefined}
           style={
             {
               ["--km-flash-x"]: flashX,

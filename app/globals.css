@@ -212,6 +212,12 @@ body {
   }
 }
 
+.km-flash[data-hold="true"] {
+  animation: none;
+  opacity: 1;
+  transform: scale(1.18);
+}
+
 .km-flash {
   position: absolute;
   inset: -30%;
